@@ -1,0 +1,53 @@
+- name: Check the outputs contract
+  ansible.builtin.assert:
+    that:
+      - golden_contract.contract_version == 'v1'
+      - golden_contract.provider == golden_config.spec.provider
+      - golden_contract.cluster_name | length > 0
+      - golden_contract.kubeconfig_path is ansible.builtin.file
+      - golden_contract.gateway_service_type in ['NodePort', 'LoadBalancer']
+    fail_msg: >-
+      build/contract.json is missing, from another environment, or not contract v1.
+      Run: make infra-up ENV=<environment file>
+    quiet: true
+
+- name: Apply guardrails for existing clusters
+  ansible.builtin.include_tasks: existing.yml
+  when: golden_config.spec.provider == 'existing'
+
+- name: Read cluster info
+  kubernetes.core.k8s_cluster_info:
+  register: preflight_cluster
+
+- name: Check the Kubernetes version
+  vars:
+    preflight_server_minor: >-
+      {{ preflight_cluster.version.server.kubernetes.major }}.{{
+         preflight_cluster.version.server.kubernetes.minor | regex_replace('[^0-9]', '') }}
+  ansible.builtin.assert:
+    that:
+      - preflight_server_minor == golden_config.spec.cluster.version
+    fail_msg: "Cluster runs {{ preflight_server_minor }}, config expects {{ golden_config.spec.cluster.version }}."
+    quiet: true
+  when: golden_config.spec.provider != 'existing'
+
+- name: List nodes
+  kubernetes.core.k8s_info:
+    kind: Node
+  register: preflight_nodes
+
+- name: Check every node is Ready
+  vars:
+    preflight_not_ready: >-
+      {%- set names = [] -%}
+      {%- for node in preflight_nodes.resources -%}
+      {%-   set ready = node.status.conditions | selectattr('type', 'equalto', 'Ready') | map(attribute='status') | first | default('Unknown') -%}
+      {%-   if ready != 'True' -%}{%- set _ = names.append(node.metadata.name) -%}{%- endif -%}
+      {%- endfor -%}
+      {{ names }}
+  ansible.builtin.assert:
+    that:
+      - preflight_nodes.resources | length > 0
+      - preflight_not_ready | length == 0
+    fail_msg: "Nodes not Ready: {{ preflight_not_ready | join(', ') }}"
+    quiet: true

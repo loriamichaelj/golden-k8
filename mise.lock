@@ -337,7 +337,9 @@ url = "https://dl.k8s.io/v1.37.2/bin/windows/amd64/kubectl.exe"
 version = "2.22.0"
 backend = "pipx:ansible-core"
 specifiers = ["2.22.0"]
-uv = { path = ".mise/locks/pipx-ansible-core/2.22.0", digest = "sha256:1fc774a8d78548210cab8ac581b71b76ca1235190ffbce1843825ef7430fb578" }
+
+[tools."pipx:ansible-core".options]
+uvx_args = "--with kubernetes==37.0.3"
 
 [[tools."pipx:ansible-lint"]]
 version = "26.11.0"

@@ -1,0 +1,14 @@
+# Rendered by golden-k8 (role: render). Do not edit build/ output.
+deployment:
+  envoyGateway:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+config:
+  envoyGateway:
+    logging:
+      level:
+        default: warn

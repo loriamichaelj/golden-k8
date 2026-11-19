@@ -1,0 +1,25 @@
+- name: Install Envoy Gateway
+  ansible.builtin.include_role:
+    name: releases
+  vars:
+    releases_group: gateway
+
+- name: Apply EnvoyProxy, GatewayClass and shared Gateway
+  kubernetes.core.k8s:
+    src: "{{ golden_build_dir }}/rendered/platform/gateway.yaml"
+    state: present
+    server_side_apply:
+      field_manager: golden-k8
+      force_conflicts: true
+
+- name: Wait for the shared Gateway to be programmed
+  kubernetes.core.k8s_info:
+    api_version: gateway.networking.k8s.io/v1
+    kind: Gateway
+    name: golden-gateway
+    namespace: envoy-gateway-system
+    wait: true
+    wait_condition:
+      type: Programmed
+      status: "True"
+    wait_timeout: 180

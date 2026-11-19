@@ -72,8 +72,8 @@ jobs:
       - name: Terraform tests (mocked providers)
         run: make test-terraform
 
-  infra-local:
-    name: kind cluster lifecycle
+  local-e2e:
+    name: local e2e (kind)
     needs: [config, terraform]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -92,6 +92,15 @@ jobs:
 
       - name: Check gateway port mapping
         run: docker port golden-local-ci-control-plane 30080/tcp | grep -q '^127.0.0.1:80$'
+
+      - name: Bootstrap platform (twice, second run must change nothing)
+        run: mise exec -- scripts/bootstrap.sh --check-idempotent
+
+      - name: Request through the shared Gateway (no routes yet → Envoy 404)
+        run: |
+          code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: hello.localtest.me' http://127.0.0.1/)"
+          echo "HTTP $code"
+          test "$code" = 404
 
       - name: Destroy kind cluster
         if: always()

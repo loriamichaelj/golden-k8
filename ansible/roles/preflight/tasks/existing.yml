@@ -1,0 +1,6 @@
+# Guardrails for provider existing (ADR-007): allowed context, local API
+# endpoint and an explicit confirmation. Implemented in increment 7; until
+# then bootstrapping an existing cluster is refused.
+- name: Refuse existing clusters until guardrails are implemented
+  ansible.builtin.fail:
+    msg: "provider 'existing' is not supported yet (guardrails arrive in increment 7)."

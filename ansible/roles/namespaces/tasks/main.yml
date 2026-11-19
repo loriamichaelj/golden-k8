@@ -1,0 +1,7 @@
+- name: Apply namespaces, quotas, limits and network policies
+  kubernetes.core.k8s:
+    src: "{{ golden_build_dir }}/rendered/platform/namespaces.yaml"
+    state: present
+    server_side_apply:
+      field_manager: golden-k8
+      force_conflicts: true
