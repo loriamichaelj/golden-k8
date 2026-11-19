@@ -1,0 +1,13 @@
+# Python environment for running the playbooks (locked in uv.lock).
+# scripts/bootstrap.sh runs everything through `uv run --locked`.
+[project]
+name = "golden-k8-ansible"
+version = "0.0.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "ansible-core==2.22.0",
+  "kubernetes==37.0.3",  # required by the kubernetes.core collection
+]
+
+[tool.uv]
+package = false

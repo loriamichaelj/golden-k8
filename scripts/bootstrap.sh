@@ -19,9 +19,12 @@ export KUBECONFIG K8S_AUTH_KUBECONFIG="$KUBECONFIG"
 K8S_AUTH_CONTEXT="$(yq -r '.kube_context' "$contract")"
 export K8S_AUTH_CONTEXT
 
-ansible-galaxy collection install -r requirements.yml -p collections >/dev/null
+# Ansible runtime: locked Python env from ansible/pyproject.toml + uv.lock.
+uvx_ansible() { uv run --project "$ROOT/ansible" --locked --quiet "$@"; }
 
-run() { ansible-playbook playbooks/bootstrap.yml -e "golden_build_dir=$ROOT/build"; }
+uvx_ansible ansible-galaxy collection install -r requirements.yml -p collections >/dev/null
+
+run() { uvx_ansible ansible-playbook playbooks/bootstrap.yml -e "golden_build_dir=$ROOT/build"; }
 
 run
 if [ "${1:-}" = "--check-idempotent" ]; then
