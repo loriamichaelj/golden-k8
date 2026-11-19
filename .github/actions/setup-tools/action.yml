@@ -1,0 +1,25 @@
+name: setup-tools
+description: Install the tool versions pinned in mise.toml (cached) and restore pre-commit environments.
+
+inputs:
+  tools:
+    description: Space-separated subset of mise tools to install. Empty installs everything.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install pinned tools (mise)
+      uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a  # v5.2.10
+      with:
+        version: 2026.11.10
+        install_args: ${{ inputs.tools }}
+        cache: true
+
+    - name: Cache pre-commit environments
+      if: inputs.tools == ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml', 'mise.toml', 'mise.lock') }}

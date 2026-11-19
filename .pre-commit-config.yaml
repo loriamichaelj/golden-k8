@@ -1,0 +1,97 @@
+# Local hooks run through `mise exec` so they always use the versions pinned
+# in mise.toml, whatever is on PATH (git GUIs, IDEs, Homebrew copies, CI).
+# Run everything: make lint
+default_install_hook_types: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: detect-private-key
+      - id: end-of-file-fixer
+        exclude: ^mise\.lock$|^\.mise/
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+  - repo: local
+    hooks:
+      # --- Secrets ---
+      - id: gitleaks
+        name: gitleaks (staged changes)
+        entry: mise exec -- gitleaks git --pre-commit --staged --redact --no-banner
+        language: system
+        pass_filenames: false
+
+      # --- YAML / GitHub ---
+      - id: yamllint
+        name: yamllint
+        entry: mise exec -- yamllint --strict
+        language: system
+        types: [yaml]
+      - id: actionlint
+        name: actionlint
+        entry: mise exec -- actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+      - id: check-github-workflows
+        name: schema · github workflows
+        entry: mise exec -- check-jsonschema --builtin-schema vendor.github-workflows
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+      - id: check-github-actions
+        name: schema · github actions
+        entry: mise exec -- check-jsonschema --builtin-schema vendor.github-actions
+        language: system
+        files: ^\.github/actions/.*/action\.ya?ml$
+      - id: check-dependabot
+        name: schema · dependabot
+        entry: mise exec -- check-jsonschema --builtin-schema vendor.dependabot
+        language: system
+        files: ^\.github/dependabot\.ya?ml$
+
+      # --- Shell ---
+      - id: shellcheck
+        name: shellcheck
+        entry: mise exec -- shellcheck
+        language: system
+        types: [shell]
+
+      # --- Terraform ---
+      - id: terraform-fmt
+        name: terraform fmt
+        entry: mise exec -- terraform fmt -check -diff -recursive terraform/
+        language: system
+        files: ^terraform/.*\.(tf|tftest\.hcl)$
+        pass_filenames: false
+      - id: tflint
+        name: tflint
+        entry: mise exec -- bash -c 'tflint --init --config "$PWD/.tflint.hcl" >/dev/null && tflint --recursive --config "$PWD/.tflint.hcl" --chdir terraform/'
+        language: system
+        files: ^terraform/.*\.tf$
+        pass_filenames: false
+
+      # --- Ansible ---
+      - id: ansible-lint
+        name: ansible-lint
+        entry: mise exec -- ansible-lint ansible/
+        language: system
+        files: ^ansible/.*\.ya?ml$
+        pass_filenames: false
+
+      # --- Go ---
+      - id: golangci-lint
+        name: golangci-lint
+        entry: mise exec -- bash -c 'cd app && golangci-lint run ./...'
+        language: system
+        files: ^app/.*\.go$
+        pass_filenames: false

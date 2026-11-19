@@ -1,0 +1,74 @@
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# --- Build outputs (normalized config, rendered manifests) ---
+build/
+k8s/app/overlays/generated/
+
+# --- Terraform ---
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!environments/**/*.tfvars
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# .terraform.lock.hcl is committed on purpose (pinned providers)
+
+# --- Kubernetes / kind ---
+kubeconfig
+*.kubeconfig
+.kube/
+
+# --- Ansible ---
+*.retry
+.ansible/
+ansible/collections/ansible_collections/
+
+# --- Python (ansible, check-jsonschema venv) ---
+.venv/
+__pycache__/
+*.pyc
+
+# --- Go ---
+app/bin/
+*.test
+*.out
+coverage.*
+
+# --- Secrets / local env ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+
+# --- Cloud / credential files (never commit) ---
+*.p12
+*.pfx
+*.jks
+.netrc
+.aws/
+.azure/
+.config/gcloud/
+*credentials*.json
+*-sa.json
+id_rsa*
+id_ecdsa*
+id_ed25519*

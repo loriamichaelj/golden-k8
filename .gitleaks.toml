@@ -1,0 +1,13 @@
+# Default gitleaks rules plus repo-specific allowances.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Placeholder values used in examples and docs"
+regexes = [
+  '''123456789012''',
+]
+paths = [
+  '''^mise\.lock$''',
+  '''^\.mise/locks/''',
+]
