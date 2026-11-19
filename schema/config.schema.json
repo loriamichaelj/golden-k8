@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "golden-k8 normalized config",
+  "description": "build/config.json after defaults are merged. Same rules as golden.schema.json, plus every defaulted field must be present. Tools read only this.",
+  "allOf": [
+    { "$ref": "golden.schema.json" },
+    {
+      "type": "object",
+      "required": ["metadata", "spec"],
+      "properties": {
+        "metadata": { "required": ["name", "owner", "tags"] },
+        "spec": {
+          "required": ["provider", "cluster", "observability", "app", "pipeline"],
+          "properties": {
+            "cluster": { "required": ["providerOverrides"] },
+            "observability": { "required": ["profile", "retentionDays"] },
+            "app": {
+              "required": ["enabled", "image", "replicas", "expose"],
+              "properties": { "expose": { "required": ["enabled", "host"] } }
+            },
+            "pipeline": { "required": ["apply"] }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "provider": { "enum": ["aws", "gcp", "azure"] } } },
+              "then": {
+                "required": ["region", "network"],
+                "properties": {
+                  "network": { "required": ["cidr", "azCount", "privateSubnets", "natGateway"] },
+                  "cluster": { "required": ["version", "nodePools"] }
+                }
+              }
+            },
+            {
+              "if": { "properties": { "provider": { "const": "local" } } },
+              "then": { "properties": { "cluster": { "required": ["version", "nodePools"] } } }
+            },
+            {
+              "if": { "properties": { "provider": { "const": "existing" } } },
+              "then": { "properties": { "cluster": { "properties": { "existing": { "required": ["context", "allowedContexts"] } } } } }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

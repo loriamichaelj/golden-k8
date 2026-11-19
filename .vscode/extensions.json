@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "redhat.vscode-yaml",
+    "hashicorp.terraform",
+    "golang.go",
+    "redhat.ansible",
+    "editorconfig.editorconfig"
+  ]
+}

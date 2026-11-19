@@ -1,0 +1,10 @@
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: gcp
+  region: europe-west4
+  network:
+    privateSubnets: false
+    natGateway: none

@@ -1,0 +1,3 @@
+# gcp: validated and mock-tested only. Never applied (ADR-001).
+# Shared cloud defaults are in _cloud.yaml.
+{}

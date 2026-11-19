@@ -1,0 +1,10 @@
+# expect: $.spec.cluster.existing: 'context' is a required property
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: existing
+  cluster:
+    existing:
+      storageClass: standard

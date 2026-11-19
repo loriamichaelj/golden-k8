@@ -1,0 +1,12 @@
+# expect: spec.cluster.nodePools: duplicate pool name "system"
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: gcp
+  region: us-central1
+  cluster:
+    nodePools:
+      - {name: system, size: small, min: 1, max: 2}
+      - {name: system, size: medium, min: 1, max: 2}

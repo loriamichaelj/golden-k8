@@ -1,0 +1,21 @@
+# Defaults for every provider. Merge order (later wins):
+#   _common.yaml → _cloud.yaml (aws/gcp/azure only) → <provider>.yaml → environment file
+# This directory is the only place defaults live.
+metadata:
+  owner: platform
+  tags: {}
+spec:
+  cluster:
+    providerOverrides: {}
+  observability:
+    profile: lite
+    retentionDays: 2
+  app:
+    enabled: true
+    image: golden-hello:dev
+    replicas: 2
+    expose:
+      enabled: true
+      host: hello.localtest.me
+  pipeline:
+    apply: false

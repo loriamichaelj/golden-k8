@@ -1,0 +1,11 @@
+# kind cluster on the local Docker engine (OrbStack locally, the runner in CI).
+spec:
+  cluster:
+    version: "1.36"
+    nodePools:
+      - name: system
+        size: small
+        min: 1
+        max: 1
+  pipeline:
+    apply: true

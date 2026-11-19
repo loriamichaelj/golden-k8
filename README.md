@@ -28,6 +28,27 @@ make lint    # run every linter and scanner
 make help    # list all targets
 ```
 
+## The parameter file
+
+An environment is one YAML file in `environments/`. Only `metadata.name` and `spec.provider` are required (plus `region` for clouds); everything else has a default in `schema/defaults/`.
+
+```yaml
+# yaml-language-server: $schema=../schema/golden.schema.json
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: local
+spec:
+  provider: local   # local | existing | aws | gcp | azure
+```
+
+```sh
+make config ENV=environments/local.yaml   # validate + merge defaults → build/config.json
+make test-config                          # schema test fixtures + example environments
+```
+
+Editors with the YAML language server (e.g. VS Code + `redhat.vscode-yaml`) get autocomplete and inline errors from `schema/golden.schema.json`.
+
 ## Repository layout
 
 ```

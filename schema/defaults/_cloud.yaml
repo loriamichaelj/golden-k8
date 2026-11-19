@@ -1,0 +1,17 @@
+# Shared defaults for aws, gcp and azure.
+spec:
+  network:
+    cidr: 10.20.0.0/16
+    azCount: 3
+    privateSubnets: true
+    natGateway: single
+  cluster:
+    version: "1.36"
+    nodePools:
+      - name: system
+        size: small
+        min: 2
+        max: 3
+  app:
+    expose:
+      host: hello.example.com

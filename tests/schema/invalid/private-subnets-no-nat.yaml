@@ -1,0 +1,11 @@
+# expect: $.spec.network.natGateway: 'none' is not one of ['single', 'perZone']
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: aws
+  region: us-east-1
+  network:
+    privateSubnets: true
+    natGateway: none

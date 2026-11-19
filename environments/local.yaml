@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../schema/golden.schema.json
+# Local development: kind cluster on your Docker engine (OrbStack, Docker Desktop, ...).
+#   make up ENV=environments/local.yaml
+# Everything not set here comes from schema/defaults/.
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: local
+spec:
+  provider: local

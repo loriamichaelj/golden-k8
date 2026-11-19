@@ -59,6 +59,19 @@ repos:
         language: system
         files: ^\.github/dependabot\.ya?ml$
 
+      # --- Config contract ---
+      - id: schema-metaschema
+        name: schema · metaschema (draft 2020-12)
+        entry: mise exec -- check-jsonschema --check-metaschema
+        language: system
+        files: ^schema/.*\.schema\.json$
+      - id: config-contract
+        name: config contract tests
+        entry: mise exec -- scripts/test-config.sh
+        language: system
+        files: ^(schema/|environments/|tests/schema/|scripts/(config|test-config)\.sh$)
+        pass_filenames: false
+
       # --- Shell ---
       - id: shellcheck
         name: shellcheck

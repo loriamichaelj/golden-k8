@@ -1,0 +1,8 @@
+# expect: $.spec.region: 'us-east-1' does not match
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: gcp
+  region: us-east-1

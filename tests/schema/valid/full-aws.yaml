@@ -1,0 +1,41 @@
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: team-a-prod
+  owner: team-a
+  tags:
+    cost-center: "1234"
+    env: prod
+spec:
+  provider: aws
+  region: eu-west-1
+  network:
+    cidr: 10.30.0.0/18
+    azCount: 2
+    privateSubnets: true
+    natGateway: perZone
+  cluster:
+    version: "1.35"
+    nodePools:
+      - name: system
+        size: medium
+        min: 2
+        max: 4
+      - name: workers
+        size: large
+        min: 1
+        max: 10
+    providerOverrides:
+      endpointPublicAccess: false
+  observability:
+    profile: standard
+    retentionDays: 14
+  app:
+    enabled: true
+    image: ghcr.io/example/golden-hello@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    replicas: 3
+    expose:
+      enabled: true
+      host: hello.team-a.example.com
+  pipeline:
+    apply: false

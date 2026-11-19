@@ -1,0 +1,10 @@
+# expect: $.spec.cluster: False schema does not allow {'context': 'orbstack'}
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: local
+  cluster:
+    existing:
+      context: orbstack

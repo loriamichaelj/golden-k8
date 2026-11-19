@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "golden-k8 Environment",
+  "description": "Parameter file for one golden-k8 environment (apiVersion golden.k8/v1alpha1). Fields that have defaults may be omitted; see schema/defaults/.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "description": "Schema version of this file.",
+      "const": "golden.k8/v1alpha1"
+    },
+    "kind": {
+      "const": "Environment"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "description": "Environment name. Used in cluster and resource names, so it is short, lowercase and DNS-safe.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,22}[a-z0-9]$"
+        },
+        "owner": {
+          "description": "Owning team or person, used for tagging.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+        },
+        "tags": {
+          "description": "Extra resource tags/labels. Restricted to the subset every cloud accepts (GCP label rules).",
+          "type": "object",
+          "maxProperties": 20,
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]{0,63}$"
+          }
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider"
+      ],
+      "properties": {
+        "provider": {
+          "description": "Infrastructure adapter. local = kind cluster; existing = a cluster you already have (kubeconfig context); aws/gcp/azure = validated and mock-tested only, never applied.",
+          "enum": [
+            "local",
+            "existing",
+            "aws",
+            "gcp",
+            "azure"
+          ]
+        },
+        "region": {
+          "description": "Cloud region. Required for aws/gcp/azure, not allowed for local/existing.",
+          "type": "string"
+        },
+        "network": {
+          "$ref": "#/$defs/network"
+        },
+        "cluster": {
+          "$ref": "#/$defs/cluster"
+        },
+        "observability": {
+          "$ref": "#/$defs/observability"
+        },
+        "app": {
+          "$ref": "#/$defs/app"
+        },
+        "pipeline": {
+          "$ref": "#/$defs/pipeline"
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "Cloud providers need a region and a network; apply is always off (zero-cost rule, ADR-001).",
+          "if": {
+            "properties": {
+              "provider": {
+                "enum": [
+                  "aws",
+                  "gcp",
+                  "azure"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "region"
+            ],
+            "properties": {
+              "pipeline": {
+                "properties": {
+                  "apply": {
+                    "const": false,
+                    "description": "Cloud apply is disabled: golden-k8 never provisions cloud resources."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "$comment": "local and existing have no region and no network layer.",
+          "if": {
+            "properties": {
+              "provider": {
+                "enum": [
+                  "local",
+                  "existing"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "region": false,
+              "network": false
+            }
+          }
+        },
+        {
+          "$comment": "existing: describe the cluster, don't size it.",
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "existing"
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "cluster"
+            ],
+            "properties": {
+              "cluster": {
+                "required": [
+                  "existing"
+                ],
+                "properties": {
+                  "nodePools": false,
+                  "version": false
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "cluster": {
+                "properties": {
+                  "existing": false
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "aws"
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "region": {
+                "pattern": "^[a-z]{2}(-gov)?-[a-z]+-[0-9]$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "gcp"
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "region": {
+                "pattern": "^[a-z]+-[a-z]+[0-9]$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "azure"
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "region": {
+                "pattern": "^[a-z]+[a-z0-9]*$"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "network": {
+      "description": "Network layer (cloud providers only).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cidr": {
+          "description": "VPC/VNet IPv4 range, /16 to /20.",
+          "type": "string",
+          "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/(1[6-9]|20)$"
+        },
+        "azCount": {
+          "description": "Number of availability zones to spread subnets across.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "privateSubnets": {
+          "description": "Place nodes in private subnets (requires a NAT gateway for egress).",
+          "type": "boolean"
+        },
+        "natGateway": {
+          "description": "NAT layout: none, a single shared gateway, or one per zone.",
+          "enum": [
+            "none",
+            "single",
+            "perZone"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "privateSubnets": {
+            "const": true
+          }
+        },
+        "required": [
+          "privateSubnets"
+        ]
+      },
+      "then": {
+        "properties": {
+          "natGateway": {
+            "enum": [
+              "single",
+              "perZone"
+            ],
+            "description": "Private subnets need a NAT gateway for egress."
+          }
+        }
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "description": "Kubernetes minor version, e.g. \"1.36\". Not used with provider existing.",
+          "type": "string",
+          "pattern": "^1\\.[0-9]{2}$"
+        },
+        "nodePools": {
+          "description": "Node pools. Sizes are abstract and mapped to a SKU per provider.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/nodePool"
+          }
+        },
+        "existing": {
+          "$ref": "#/$defs/existingCluster"
+        },
+        "providerOverrides": {
+          "description": "Escape hatch for provider-specific cluster settings. Passed through to the adapter as-is.",
+          "type": "object"
+        }
+      }
+    },
+    "nodePool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "size",
+        "min",
+        "max"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,14}[a-z0-9]$"
+        },
+        "size": {
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        },
+        "min": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      }
+    },
+    "existingCluster": {
+      "description": "A cluster golden-k8 did not create (provider existing). Local clusters only; see allowedContexts.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context"
+      ],
+      "properties": {
+        "context": {
+          "description": "kubeconfig context name. Required; never taken from current-context.",
+          "type": "string",
+          "minLength": 1
+        },
+        "storageClass": {
+          "description": "StorageClass for PVCs. Omit to use the cluster's default StorageClass.",
+          "type": "string",
+          "minLength": 1
+        },
+        "allowedContexts": {
+          "description": "Context names (glob patterns) preflight will accept.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "description": "lite: Prometheus + Grafana (default, forced in CI). standard: adds Alertmanager, Loki and Tempo.",
+          "enum": [
+            "lite",
+            "standard"
+          ]
+        },
+        "retentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        }
+      }
+    },
+    "app": {
+      "description": "The sample application.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "description": "Container image reference (repository:tag or repository@digest).",
+          "type": "string",
+          "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)*(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|@sha256:[a-f0-9]{64})$"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "expose": {
+          "description": "Expose the app over HTTP outside the cluster.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "host": {
+              "description": "Hostname to serve the app on.",
+              "type": "string",
+              "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
+            }
+          }
+        }
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apply": {
+          "description": "Allow the pipeline to create/modify infrastructure. Only possible for local and existing.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

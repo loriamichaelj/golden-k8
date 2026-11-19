@@ -1,0 +1,9 @@
+# A cluster golden-k8 did not create. apply stays false until you opt in.
+spec:
+  cluster:
+    existing:
+      allowedContexts:
+        - orbstack
+        - kind-*
+        - docker-desktop
+        - minikube
