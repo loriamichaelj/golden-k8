@@ -40,8 +40,12 @@ secrets: ## Scan the full git history for secrets
 test-config: ## Config contract tests (schema fixtures + example environments)
 	$(RUN) scripts/test-config.sh
 
+.PHONY: test-terraform
+test-terraform: ## Terraform tests for every module and stack (mocked, no cloud/Docker)
+	$(RUN) scripts/test-terraform.sh
+
 .PHONY: validate
-validate: lint test-config ## Full static validation (grows with each increment)
+validate: lint test-config test-terraform ## Full static validation (grows with each increment)
 
 ##@ Config
 
@@ -52,12 +56,12 @@ config: ## Merge defaults + ENV and validate into build/config.json
 ##@ Environment lifecycle
 
 .PHONY: infra-up
-infra-up: ## Create the cluster for ENV (local: kind)
-	$(call todo,increment 2)
+infra-up: config ## Create the cluster for ENV (local: kind) → build/contract.json
+	$(RUN) scripts/infra.sh up build/config.json
 
 .PHONY: infra-down
-infra-down: ## Destroy the cluster for ENV
-	$(call todo,increment 2)
+infra-down: config ## Destroy the cluster for ENV
+	$(RUN) scripts/infra.sh down build/config.json
 
 .PHONY: bootstrap
 bootstrap: ## Install the platform layer with Ansible

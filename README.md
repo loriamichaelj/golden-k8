@@ -47,6 +47,19 @@ make config ENV=environments/local.yaml   # validate + merge defaults → build/
 make test-config                          # schema test fixtures + example environments
 ```
 
+## Local cluster
+
+```sh
+make infra-up     # kind cluster for ENV (default environments/local.yaml) → build/contract.json
+make infra-down   # destroy it
+```
+
+The cluster runs on your local Docker engine. The API server and the gateway port listen on `127.0.0.1` only. Cloud environments (`aws`/`gcp`/`azure`) are refused: they are validated and tested with mocked providers, never applied.
+
+```sh
+make test-terraform   # Terraform tests for every module and stack (no cloud, no Docker)
+```
+
 Editors with the YAML language server (e.g. VS Code + `redhat.vscode-yaml`) get autocomplete and inline errors from `schema/golden.schema.json`.
 
 ## Repository layout
