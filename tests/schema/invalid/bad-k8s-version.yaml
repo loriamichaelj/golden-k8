@@ -1,0 +1,9 @@
+# expect: $.spec.cluster.version: '1.36.4' does not match
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: local
+  cluster:
+    version: "1.36.4"

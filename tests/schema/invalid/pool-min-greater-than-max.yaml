@@ -1,0 +1,10 @@
+# expect: spec.cluster.nodePools[system]: min (3) must be <= max (2)
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: local
+  cluster:
+    nodePools:
+      - {name: system, size: small, min: 3, max: 2}

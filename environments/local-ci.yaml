@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../schema/golden.schema.json
+# Used by CI for the end-to-end run on a GitHub-hosted runner (~7 GB RAM).
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: local-ci
+  owner: ci
+spec:
+  provider: local
+  observability:
+    profile: lite
+    retentionDays: 1

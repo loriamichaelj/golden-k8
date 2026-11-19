@@ -1,0 +1,7 @@
+# expect: $.metadata.name: 'Demo_Env' does not match
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: Demo_Env
+spec:
+  provider: local

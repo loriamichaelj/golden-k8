@@ -1,0 +1,9 @@
+# expect: $.metadata.tags: 'CostCenter' does not match
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+  tags:
+    CostCenter: "1234"
+spec:
+  provider: local

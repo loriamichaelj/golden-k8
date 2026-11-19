@@ -1,0 +1,8 @@
+# expect: $.spec.region: 'us-central1' does not match
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: azure
+  region: us-central1

@@ -1,0 +1,11 @@
+{
+  "yaml.schemas": {
+    "./schema/golden.schema.json": [
+      "environments/*.yaml",
+      "tests/schema/**/*.yaml"
+    ]
+  },
+  "files.associations": {
+    "mise.lock": "toml"
+  }
+}

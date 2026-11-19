@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../schema/golden.schema.json
+# Example for Azure (VNet + AKS). Validated and mock-tested only: golden-k8 never
+# provisions cloud resources, so pipeline.apply must stay false.
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: azure-example
+  owner: team-example
+  tags:
+    cost-center: "0000"
+spec:
+  provider: azure
+  region: eastus
+  network:
+    cidr: 10.20.0.0/16
+    azCount: 3
+    privateSubnets: true
+    natGateway: single
+  cluster:
+    version: "1.36"
+    nodePools:
+      - name: system
+        size: small
+        min: 2
+        max: 3
+      - name: apps
+        size: medium
+        min: 1
+        max: 5
+  app:
+    image: ghcr.io/example/golden-hello:0.1.0
+    expose:
+      host: hello.example.com

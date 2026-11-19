@@ -1,0 +1,10 @@
+# expect: $.spec.cluster.nodePools[0].size: 'xlarge' is not one of
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: local
+  cluster:
+    nodePools:
+      - {name: system, size: xlarge, min: 1, max: 1}

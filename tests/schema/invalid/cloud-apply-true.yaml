@@ -1,0 +1,10 @@
+# expect: $.spec.pipeline.apply: False was expected
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: azure
+  region: eastus
+  pipeline:
+    apply: true

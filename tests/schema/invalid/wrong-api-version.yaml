@@ -1,0 +1,7 @@
+# expect: $.apiVersion: 'golden.k8/v1alpha1' was expected
+apiVersion: golden.k8/v1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: local

@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../schema/golden.schema.json
+# Deploy the platform and sample app onto OrbStack's built-in Kubernetes.
+# golden-k8 creates no cluster here; preflight only accepts local contexts.
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: orbstack
+spec:
+  provider: existing
+  cluster:
+    existing:
+      context: orbstack
+      # storageClass: omitted to use the cluster's default StorageClass
+  pipeline:
+    apply: true   # opt in to installing onto this cluster

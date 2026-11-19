@@ -36,14 +36,18 @@ lint: ## Run every linter and scanner against the whole repo
 secrets: ## Scan the full git history for secrets
 	$(RUN) gitleaks git --redact --no-banner --verbose
 
+.PHONY: test-config
+test-config: ## Config contract tests (schema fixtures + example environments)
+	$(RUN) scripts/test-config.sh
+
 .PHONY: validate
-validate: lint ## Full static validation (grows with each increment)
+validate: lint test-config ## Full static validation (grows with each increment)
 
 ##@ Config
 
 .PHONY: config
 config: ## Merge defaults + ENV and validate into build/config.json
-	$(call todo,increment 1)
+	$(RUN) scripts/config.sh $(ENV) build/config.json
 
 ##@ Environment lifecycle
 

@@ -1,0 +1,7 @@
+# expect: $.spec: 'cluster' is a required property
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: existing
