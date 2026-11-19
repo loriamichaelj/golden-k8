@@ -56,6 +56,47 @@ jobs:
           path: build/config.json
           retention-days: 7
 
+  terraform:
+    name: terraform tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup tools
+        uses: ./.github/actions/setup-tools
+
+      - name: Terraform tests (mocked providers)
+        run: make test-terraform
+
+  infra-local:
+    name: kind cluster lifecycle
+    needs: [config, terraform]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup tools
+        uses: ./.github/actions/setup-tools
+
+      - name: Create kind cluster
+        run: make infra-up ENV=environments/local-ci.yaml
+
+      - name: Check gateway port mapping
+        run: docker port golden-local-ci-control-plane 30080/tcp | grep -q '^127.0.0.1:80$'
+
+      - name: Destroy kind cluster
+        if: always()
+        run: make infra-down ENV=environments/local-ci.yaml
+
   secrets:
     name: secret scan
     runs-on: ubuntu-24.04
