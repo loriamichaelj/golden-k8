@@ -1,0 +1,9 @@
+galaxy_info:
+  author: golden-k8
+  description: golden-k8 releases role
+  license: MIT
+  min_ansible_version: "2.18"
+  platforms:
+    - name: GenericLinux
+      versions: [all]
+dependencies: []

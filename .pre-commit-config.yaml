@@ -96,9 +96,9 @@ repos:
       # --- Ansible ---
       - id: ansible-lint
         name: ansible-lint
-        entry: mise exec -- ansible-lint ansible/
+        entry: mise exec -- bash -c 'cd ansible && ansible-lint'
         language: system
-        files: ^ansible/.*\.ya?ml$
+        files: ^(ansible/|k8s/platform/)
         pass_filenames: false
 
       # --- Go ---

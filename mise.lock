@@ -333,12 +333,6 @@ url = "https://dl.k8s.io/v1.37.2/bin/darwin/amd64/kubectl"
 checksum = "sha256:1691938f7de0e931969f9968c3601cf32d6b0d573573afb4ce471f3d28f51984"
 url = "https://dl.k8s.io/v1.37.2/bin/windows/amd64/kubectl.exe"
 
-[[tools."pipx:ansible-core"]]
-version = "2.22.0"
-backend = "pipx:ansible-core"
-specifiers = ["2.22.0"]
-uv = { path = ".mise/locks/pipx-ansible-core/2.22.0", digest = "sha256:1fc774a8d78548210cab8ac581b71b76ca1235190ffbce1843825ef7430fb578" }
-
 [[tools."pipx:ansible-lint"]]
 version = "26.11.0"
 backend = "pipx:ansible-lint"

@@ -1,0 +1,13 @@
+# Namespaces golden-k8 creates and manages.
+#   tier platform: shared components installed by golden-k8
+#   tier workload: tenant namespaces; get quota, limit defaults,
+#                  default-deny network policies and the restricted
+#                  Pod Security standard
+#   gatewayAccess: may attach HTTPRoutes to the shared Gateway
+namespaces:
+  - name: envoy-gateway-system
+    tier: platform
+    gatewayAccess: false
+  - name: apps
+    tier: workload
+    gatewayAccess: true

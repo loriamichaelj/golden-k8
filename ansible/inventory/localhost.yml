@@ -1,0 +1,7 @@
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      # The interpreter running ansible-playbook (mise-managed, has the
+      # kubernetes client installed).
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"

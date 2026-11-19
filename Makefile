@@ -64,8 +64,8 @@ infra-down: config ## Destroy the cluster for ENV
 	$(RUN) scripts/infra.sh down build/config.json
 
 .PHONY: bootstrap
-bootstrap: ## Install the platform layer with Ansible
-	$(call todo,increment 3)
+bootstrap: ## Install the platform layer with Ansible (needs make infra-up)
+	$(RUN) scripts/bootstrap.sh
 
 .PHONY: image
 image: ## Build the sample app image and load it into kind

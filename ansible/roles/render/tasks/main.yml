@@ -1,0 +1,28 @@
+# Turn config + contract into plain YAML under build/rendered/. Every later
+# role applies these files; nothing is decided at apply time (ADR-009).
+- name: Create render directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ render_dir }}/platform"
+    - "{{ render_dir }}/values"
+
+- name: Render platform manifests
+  ansible.builtin.template:
+    src: "{{ render_platform_dir }}/templates/{{ item }}.j2"
+    dest: "{{ render_dir }}/platform/{{ item }}"
+    mode: "0644"
+  loop:
+    - namespaces.yaml
+    - gateway.yaml
+
+- name: Render Helm values
+  ansible.builtin.template:
+    src: "{{ render_platform_dir }}/templates/values/{{ item.values_file }}.j2"
+    dest: "{{ render_dir }}/values/{{ item.values_file }}"
+    mode: "0644"
+  loop: "{{ golden_releases }}"
+  loop_control:
+    label: "{{ item.name }}"

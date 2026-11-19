@@ -1,0 +1,27 @@
+# Platform bootstrap: everything above the cluster, provider-agnostic.
+# Inputs (written by make config / make infra-up):
+#   <golden_build_dir>/config.json    normalized environment config
+#   <golden_build_dir>/contract.json  infra outputs contract
+- name: Bootstrap the golden-k8 platform
+  hosts: localhost
+  gather_facts: false
+  vars:
+    golden_repo_root: "{{ playbook_dir | dirname | dirname }}"
+    golden_build_dir: "{{ golden_repo_root }}/build"
+    golden_platform_dir: "{{ golden_repo_root }}/k8s/platform"
+  module_defaults:
+    group/kubernetes.core.k8s:
+      kubeconfig: "{{ golden_contract.kubeconfig_path }}"
+      context: "{{ golden_contract.kube_context }}"
+  pre_tasks:
+    - name: Load the normalized config, outputs contract and platform data
+      ansible.builtin.set_fact:
+        golden_config: "{{ lookup('ansible.builtin.file', golden_build_dir ~ '/config.json') | from_json }}"
+        golden_contract: "{{ lookup('ansible.builtin.file', golden_build_dir ~ '/contract.json') | from_json }}"
+        golden_namespaces: "{{ (lookup('ansible.builtin.file', golden_platform_dir ~ '/namespaces.yaml') | from_yaml).namespaces }}"
+        golden_releases: "{{ (lookup('ansible.builtin.file', golden_platform_dir ~ '/releases.yaml') | from_yaml).releases }}"
+  roles:
+    - role: preflight
+    - role: render
+    - role: namespaces
+    - role: gateway

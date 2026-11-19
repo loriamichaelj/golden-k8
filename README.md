@@ -60,6 +60,17 @@ The cluster runs on your local Docker engine. The API server and the gateway por
 make test-terraform   # Terraform tests for every module and stack (no cloud, no Docker)
 ```
 
+## Platform bootstrap
+
+```sh
+make bootstrap   # Ansible: preflight → render → namespaces → Envoy Gateway
+```
+
+Ansible only applies what it renders into `build/rendered/` from the config, the infrastructure outputs and the data in `k8s/platform/` (Helm releases, namespaces, templates). Every tool is pinned to the cluster in `build/contract.json`; nothing falls back to your default kubeconfig.
+
+- **Traffic:** Gateway API with Envoy Gateway. One shared `Gateway` (`golden-gateway`); apps attach `HTTPRoute`s. On kind it listens on `127.0.0.1:80`.
+- **Namespaces:** labelled `golden-k8/managed=true`. Workload namespaces get a ResourceQuota, LimitRange defaults, default-deny NetworkPolicies (DNS and gateway traffic allowed) and the `restricted` Pod Security standard.
+
 Editors with the YAML language server (e.g. VS Code + `redhat.vscode-yaml`) get autocomplete and inline errors from `schema/golden.schema.json`.
 
 ## Repository layout

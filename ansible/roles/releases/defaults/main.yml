@@ -1,0 +1,2 @@
+# Which releases from k8s/platform/releases.yaml to install.
+releases_group: ""
