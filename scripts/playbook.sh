@@ -3,7 +3,9 @@
 #
 #   scripts/playbook.sh bootstrap [--check-idempotent]
 #   scripts/playbook.sh smoke
+#   scripts/playbook.sh render        (make render: no cluster needed)
 #
+# GOLDEN_CONTRACT overrides the outputs contract (default build/contract.json).
 # --check-idempotent runs the playbook a second time and fails unless that
 # run reports changed=0.
 set -euo pipefail
@@ -11,10 +13,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT/ansible" || exit 1
 
-playbook="${1:?usage: playbook.sh bootstrap|smoke [--check-idempotent]}"
+playbook="${1:?usage: playbook.sh bootstrap|smoke|render [--check-idempotent]}"
 [ -f "playbooks/$playbook.yml" ] || { echo "playbook: no such playbook: $playbook" >&2; exit 1; }
-contract="$ROOT/build/contract.json"
-[ -f "$contract" ] || { echo "$playbook: no build/contract.json (run: make infra-up ENV=...)" >&2; exit 1; }
+contract="${GOLDEN_CONTRACT:-$ROOT/build/contract.json}"
+[ -f "$contract" ] || { echo "$playbook: no outputs contract at $contract (run: make infra-up ENV=...)" >&2; exit 1; }
 # Pin every tool (kubectl, helm, kubernetes client) to the golden-k8 cluster so
 # nothing can fall back to the user's default kubeconfig/current-context.
 KUBECONFIG="$(yq -r '.kubeconfig_path' "$contract")"
@@ -30,7 +32,10 @@ uvx_ansible() { uv run --project "$ROOT/ansible" --locked --quiet "$@"; }
 
 uvx_ansible ansible-galaxy collection install -r requirements.yml -p collections >/dev/null
 
-run() { uvx_ansible ansible-playbook "playbooks/$playbook.yml" -e "golden_build_dir=$ROOT/build"; }
+run() {
+  uvx_ansible ansible-playbook "playbooks/$playbook.yml" \
+    -e "golden_build_dir=$ROOT/build" -e "golden_contract_path=$contract"
+}
 
 run
 if [ "${2:-}" = "--check-idempotent" ]; then

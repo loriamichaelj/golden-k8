@@ -1,3 +1,6 @@
 render_dir: "{{ golden_build_dir }}/rendered"
 render_platform_dir: "{{ golden_platform_dir }}"
 render_app_dir: "{{ golden_app_dir }}"
+# Also template every Helm release into releases/ (make render).
+render_releases: false
+render_kube_version: "{{ golden_config.spec.cluster.version | default('1.36') }}.0"

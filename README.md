@@ -114,6 +114,38 @@ make test-manifests   # every overlay through kubeconform (strict, pinned Kubern
 make smoke            # app via the Gateway, Prometheus scrapes it, request metric recorded, dashboard provisioned, HPA has metrics
 ```
 
+## Render without a cluster
+
+```sh
+make render ENV=environments/aws-example.yaml
+```
+
+This renders everything the environment would get, for any provider: the platform manifests, every Helm release (`helm template` with the rendered values) and the app. All of it is validated with kubeconform (strict, against pinned Kubernetes and CRD schemas). The output is plain YAML in `build/rendered/`, plus a summary of resources per file. Without a cluster, the outputs contract is a placeholder with the provider's gateway shape.
+
+## The golden path in CI
+
+`.github/workflows/golden-path.yml` is a reusable workflow. Call it from your own repository with your parameter file:
+
+```yaml
+jobs:
+  environment:
+    uses: <owner>/golden-k8/.github/workflows/golden-path.yml@<ref>
+    with:
+      config-file: environments/team-a.yaml
+      apply: true   # provider local only: run it end to end on kind
+```
+
+| Job | What it does |
+|---|---|
+| `config` | Validates and normalizes the parameter file. It uploads `config.json` as an artifact and forces the `lite` profile. |
+| `terraform` | Validates the provider's stack and runs every Terraform test, with mocked providers. |
+| `deploy + smoke (kind)` | *(local, `apply: true`)* Creates the kind cluster, renders and validates, builds and loads the image, and bootstraps twice (the second run must change nothing). Then it runs the smoke and observability checks and always tears the cluster down. It runs in the `ci` environment. |
+| `render + schema check` | *(every other environment)* Runs `make render`. It needs no cluster and no credentials. |
+
+- **Job summaries:** each job writes a summary to the run page: Terraform results, rendered resource counts, image size, smoke results and observability memory.
+- **Checkouts:** the parameter file comes from your repository, and golden-k8 is checked out a second time at `golden-ref`. When the caller is golden-k8 itself (or a repository created from the template), the second checkout is skipped.
+- **This repository's CI:** it calls the workflow by local path for the local environment and for the three cloud examples. One of those calls forces the second checkout, so the path other repositories take stays tested.
+
 ## Repository layout
 
 ```

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016  # backticks in printf formats are Markdown
 # Build the sample app image and load it into the local kind cluster.
 #
 #   scripts/image.sh [build/config.json]
@@ -54,4 +55,7 @@ info "loading into kind cluster $cluster"
 kind load docker-image "$image" --name "$cluster" >/dev/null
 
 printf '{"image": "%s", "id": "%s"}\n' "$image" "$id" > "$BUILD/image.json"
+mkdir -p "$BUILD/summary"
+printf '### App image\n\n| Image | Version | Size | Loaded into |\n|---|---|---|---|\n| `%s` | `%s` | %s MB (budget %s MB) | kind `%s` (never pushed) |\n' \
+  "$image" "$version" "$size_mb" "$max_mb" "$cluster" > "$BUILD/summary/image.md"
 info "$image ($id) → build/image.json"

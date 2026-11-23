@@ -11,11 +11,6 @@ RUN := $(if $(shell command -v mise 2>/dev/null),mise exec --,)
 # Parameter file for the environment being worked on.
 ENV ?= environments/local.yaml
 
-# Placeholder for targets delivered by a later increment.
-define todo
-	@echo "make $@: not implemented yet ($(1))" >&2; exit 2
-endef
-
 ##@ Setup
 
 .PHONY: tools
@@ -99,8 +94,8 @@ smoke: ## Smoke tests: app via the Gateway, scraped by Prometheus, dashboard, HP
 down: infra-down ## Tear down everything golden-k8 created for ENV
 
 .PHONY: render
-render: ## Render manifests for ENV without applying (any provider)
-	$(call todo,increment 6)
+render: config ## Render + schema-check everything ENV would apply, no cluster needed (any provider)
+	$(RUN) scripts/render.sh build/config.json
 
 ##@ Housekeeping
 
