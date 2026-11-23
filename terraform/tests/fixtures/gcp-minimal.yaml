@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../../schema/golden.schema.json
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: test
+spec:
+  provider: gcp
+  region: us-central1
