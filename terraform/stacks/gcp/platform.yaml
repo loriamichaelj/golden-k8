@@ -1,0 +1,13 @@
+# What the platform layer needs to know about a GKE cluster, beyond its
+# endpoint. Read by main.tf (into the outputs contract) and by scripts/render.sh
+# (to render cloud manifests without a cluster), so both always agree.
+
+# GKE's built-in Persistent Disk CSI driver (pd-balanced), the default class.
+storage_class: standard-rwo
+
+# Envoy Gateway's proxy Service becomes an external passthrough Network Load
+# Balancer, backend-service based (recommended over target pools). Add or
+# replace annotations with spec.cluster.providerOverrides.lbAnnotations.
+gateway_service_type: LoadBalancer
+lb_annotations:
+  cloud.google.com/l4-rbs: enabled

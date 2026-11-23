@@ -1,4 +1,8 @@
 # gcp: multi-zone node pools, so replicas also spread across zones.
+# Load balancing and storage come from the outputs contract, not this overlay:
+# the shared Gateway's Service gets the GCE load balancer annotations
+# (terraform/stacks/gcp/platform.yaml), and GKE's PD CSI driver provides the
+# standard-rwo default StorageClass.
 # Rendered and schema-checked only; golden-k8 never applies to a cloud.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

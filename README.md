@@ -107,6 +107,17 @@ Cloud stacks are written to be applied, but golden-k8 never applies them: `make 
 - **`providerOverrides`:** `lbAnnotations` (merged over the defaults, e.g. for the AWS Load Balancer Controller) and `endpointPublicAccessCidrs` (who may reach the public API endpoint, default everyone).
 - **Tests:** subnet and NAT counts per `azCount`/`natGateway`, node groups per pool, add-ons, tags, the kubeconfig and the contract. A shared parity check (`terraform/tests/parity`) holds every stack, cloud or not, to the same contract keys and types.
 
+**GCP** (`terraform/stacks/gcp`, example `environments/gcp-example.yaml`):
+
+- **Network:** a custom-mode VPC with one regional subnet for the nodes and secondary ranges for pods and services (VPC-native). `natGateway` selects Cloud NAT: `single` uses automatically allocated addresses, `perZone` reserves one static address per zone. Cloud NAT is regional either way.
+- **Cluster:** a regional GKE cluster across `azCount` zones on the REGULAR release channel. Nodes are private when `privateSubnets: true`, and Workload Identity is on. Each node pool autoscales between its `min` and `max` across all zones (`small`/`medium`/`large` → `e2-standard-2`/`4`/`8`), on Container-Optimized OS with Secure Boot, as a dedicated node service account. GKE's Persistent Disk CSI driver provides the `standard-rwo` default StorageClass.
+- **Gateway:** an external passthrough Network Load Balancer (backend-service based). Settings shared with `make render` live in `terraform/stacks/gcp/platform.yaml`.
+- **Kubeconfig:** exec-based (`gke-gcloud-auth-plugin`), so it stores no credentials.
+- **Project:** `providerOverrides.project`, else the provider's environment (`GOOGLE_PROJECT` or gcloud's default project).
+- **Other `providerOverrides`:** `lbAnnotations`, `masterAuthorizedCidrs` (who may reach the API endpoint, default anyone) and `deletionProtection` (default `true`).
+- **Labels:** every resource gets `metadata.tags` plus `golden-k8-environment`, `golden-k8-owner` and `golden-k8-managed` (GCP label keys can't contain `/`).
+- **Tests:** node, pod and service ranges, NAT per `natGateway`, node pools per pool, cluster settings, labels, the kubeconfig and the contract (including the parity check).
+
 ## Platform bootstrap
 
 ```sh

@@ -1,3 +1,10 @@
 # gcp: validated and mock-tested only. Never applied (ADR-001).
 # Shared cloud defaults are in _cloud.yaml.
+#
+# spec.cluster.providerOverrides understood by terraform/stacks/gcp:
+#   project: ""                    GCP project; default: the provider's environment
+#                                  (GOOGLE_PROJECT or gcloud's default project)
+#   lbAnnotations: {}              merged over terraform/stacks/gcp/platform.yaml
+#   masterAuthorizedCidrs: []      who may reach the API endpoint (empty: anyone)
+#   deletionProtection: true       block terraform destroy of the cluster
 {}
