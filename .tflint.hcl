@@ -22,3 +22,10 @@ plugin "google" {
   version = "0.41.0"
   source  = "github.com/terraform-linters/tflint-ruleset-google"
 }
+
+# Rules for azurerm_* resources (VM sizes, invalid values).
+plugin "azurerm" {
+  enabled = true
+  version = "0.33.0"
+  source  = "github.com/terraform-linters/tflint-ruleset-azurerm"
+}
