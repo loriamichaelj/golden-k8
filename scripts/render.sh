@@ -27,6 +27,7 @@ name="$(yq -r '.metadata.name' "$BUILD/config.json")"
 profile="$(yq -r '.spec.observability.profile' "$BUILD/config.json")"
 cluster="golden-$name"
 
+mkdir -p "$BUILD/render"
 contract="$BUILD/contract.json"
 if [ -f "$contract" ] && [ "$(yq -r '.provider' "$contract")" = "$provider" ] \
     && [ "$(yq -r '.cluster_name' "$contract")" = "$cluster" ]; then
@@ -34,7 +35,6 @@ if [ -f "$contract" ] && [ "$(yq -r '.provider' "$contract")" = "$provider" ] \
 else
   contract="$BUILD/render/contract.json"
   contract_kind="placeholder: no cluster, $provider gateway shape"
-  mkdir -p "$BUILD/render"
   if [ "$provider" = local ]; then gw_type=NodePort gw_port=30080; else gw_type=LoadBalancer gw_port=null; fi
   cat > "$contract" <<JSON
 {
