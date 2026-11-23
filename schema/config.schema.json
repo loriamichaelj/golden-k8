@@ -13,7 +13,10 @@
           "required": ["provider", "cluster", "observability", "app", "pipeline"],
           "properties": {
             "cluster": { "required": ["providerOverrides"] },
-            "observability": { "required": ["profile", "retentionDays"] },
+            "observability": {
+              "required": ["profile", "retentionDays", "expose"],
+              "properties": { "expose": { "required": ["enabled", "host"] } }
+            },
             "app": {
               "required": ["enabled", "image", "replicas", "expose"],
               "properties": { "expose": { "required": ["enabled", "host"] } }

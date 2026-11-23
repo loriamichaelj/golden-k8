@@ -11,7 +11,7 @@
     values_files:
       - "{{ golden_build_dir }}/rendered/values/{{ item.values_file }}"
     wait: true
-    wait_timeout: "{{ item.wait_timeout | default('5m') }}"
+    timeout: "{{ item.wait_timeout | default('5m') }}"
     atomic: true
   loop: "{{ golden_releases | selectattr('group', 'equalto', releases_group) | list }}"
   loop_control:

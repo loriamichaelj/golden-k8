@@ -9,7 +9,7 @@ metadata:
     golden-k8/managed: "true"
     golden-k8/tier: {{ ns.tier }}
     golden-k8/gateway-access: "{{ ns.gatewayAccess | lower }}"
-    pod-security.kubernetes.io/enforce: {{ 'restricted' if ns.tier == 'workload' else 'baseline' }}
+    pod-security.kubernetes.io/enforce: {{ ns.podSecurity | default('restricted' if ns.tier == 'workload' else 'baseline') }}
     pod-security.kubernetes.io/warn: restricted
 {% if ns.tier == 'workload' %}
 ---

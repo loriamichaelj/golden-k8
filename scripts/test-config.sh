@@ -3,6 +3,7 @@
 #   - tests/schema/valid/*.yaml and environments/*.yaml must normalize cleanly
 #   - tests/schema/invalid/*.yaml must fail, and the error output must contain
 #     the text on the file's first line: "# expect: <substring>"
+#   - CI=true forces observability profile lite (with a warning)
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,6 +33,22 @@ for f in tests/schema/invalid/*.yaml; do
     bad "$f" "failed, but not with: $expect"$'\n'"$out"
   fi
 done
+
+echo "ci override:"
+f=tests/schema/valid/standard-profile.yaml
+if out="$(env -u CI -u GITHUB_ACTIONS scripts/config.sh "$f" "$tmp/out.json" 2>&1)" \
+  && [ "$(yq -r '.spec.observability.profile' "$tmp/out.json")" = standard ]; then
+  ok "$f keeps profile standard outside CI"
+else
+  bad "$f keeps profile standard outside CI" "$out"
+fi
+if out="$(env -u GITHUB_ACTIONS CI=true scripts/config.sh "$f" "$tmp/out.json" 2>&1)" \
+  && [ "$(yq -r '.spec.observability.profile' "$tmp/out.json")" = lite ] \
+  && printf '%s' "$out" | grep -Fq "is ignored in CI: using lite"; then
+  ok "$f is forced to lite in CI, with a warning"
+else
+  bad "$f is forced to lite in CI, with a warning" "$out"
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

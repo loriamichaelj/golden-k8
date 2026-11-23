@@ -9,6 +9,17 @@
     golden_repo_root: "{{ playbook_dir | dirname | dirname }}"
     golden_build_dir: "{{ golden_repo_root }}/build"
     golden_platform_dir: "{{ golden_repo_root }}/k8s/platform"
+    # Observability profile (config.sh already forced lite in CI).
+    golden_profile: "{{ golden_config.spec.observability.profile }}"
+    # Releases for this profile; entries without `profiles` belong to all.
+    golden_releases: >-
+      {%- set selected = [] -%}
+      {%- for release in golden_release_catalog -%}
+      {%-   if golden_profile in release.profiles | default([golden_profile]) -%}
+      {%-     set _ = selected.append(release) -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ selected }}
   module_defaults:
     group/kubernetes.core.k8s:
       kubeconfig: "{{ golden_contract.kubeconfig_path }}"
@@ -19,9 +30,10 @@
         golden_config: "{{ lookup('ansible.builtin.file', golden_build_dir ~ '/config.json') | from_json }}"
         golden_contract: "{{ lookup('ansible.builtin.file', golden_build_dir ~ '/contract.json') | from_json }}"
         golden_namespaces: "{{ (lookup('ansible.builtin.file', golden_platform_dir ~ '/namespaces.yaml') | from_yaml).namespaces }}"
-        golden_releases: "{{ (lookup('ansible.builtin.file', golden_platform_dir ~ '/releases.yaml') | from_yaml).releases }}"
+        golden_release_catalog: "{{ (lookup('ansible.builtin.file', golden_platform_dir ~ '/releases.yaml') | from_yaml).releases }}"
   roles:
     - role: preflight
     - role: render
     - role: namespaces
     - role: gateway
+    - role: observability

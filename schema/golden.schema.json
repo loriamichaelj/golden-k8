@@ -386,7 +386,7 @@
       "additionalProperties": false,
       "properties": {
         "profile": {
-          "description": "lite: Prometheus + Grafana (default, forced in CI). standard: adds Alertmanager, Loki and Tempo.",
+          "description": "lite: Prometheus + Grafana with trimmed rules (default, forced in CI). standard: opt-in, local only; adds Alertmanager and the full rule set.",
           "enum": [
             "lite",
             "standard"
@@ -396,6 +396,10 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 30
+        },
+        "expose": {
+          "description": "Expose Grafana over HTTP (an HTTPRoute on the shared Gateway).",
+          "$ref": "#/$defs/expose"
         }
       }
     },
@@ -418,19 +422,22 @@
           "maximum": 10
         },
         "expose": {
-          "description": "Expose the app over HTTP outside the cluster.",
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "host": {
-              "description": "Hostname to serve the app on.",
-              "type": "string",
-              "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
-            }
-          }
+          "description": "Expose the app over HTTP (an HTTPRoute on the shared Gateway).",
+          "$ref": "#/$defs/expose"
+        }
+      }
+    },
+    "expose": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "host": {
+          "description": "Hostname to serve on.",
+          "type": "string",
+          "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
         }
       }
     },
