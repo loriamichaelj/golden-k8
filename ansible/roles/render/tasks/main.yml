@@ -9,6 +9,7 @@
     - "{{ render_dir }}/platform"
     - "{{ render_dir }}/values"
     - "{{ render_dir }}/app"
+    - "{{ render_dir }}/releases"
 
 - name: Render platform manifests
   ansible.builtin.template:
@@ -28,6 +29,14 @@
   loop_control:
     label: "{{ item.name }}"
 
+- name: Check there is an app overlay for the provider
+  ansible.builtin.assert:
+    that:
+      - (golden_app_dir ~ '/overlays/' ~ golden_provider) is ansible.builtin.directory
+    fail_msg: "No app overlay for provider {{ golden_provider }} (k8s/app/overlays/{{ golden_provider }})."
+    quiet: true
+  when: golden_config.spec.app.enabled
+
 - name: Render the app overlay
   ansible.builtin.template:
     src: "{{ render_app_dir }}/overlay.yaml.j2"
@@ -37,7 +46,7 @@
 
 - name: Build the app manifests with Kustomize
   ansible.builtin.command:
-    cmd: "{{ golden_kubectl }} kustomize {{ render_dir | quote }}/app"
+    cmd: "kubectl kustomize {{ render_dir | quote }}/app"
   register: render_app_build
   changed_when: false
   when: golden_config.spec.app.enabled
@@ -48,3 +57,31 @@
     dest: "{{ render_dir }}/app.yaml"
     mode: "0644"
   when: golden_config.spec.app.enabled
+
+# make render only: the Helm releases as plain manifests, for schema checks
+# without a cluster (bootstrap installs the charts with these same values).
+- name: Template the Helm releases
+  ansible.builtin.command:
+    argv: >-
+      {{ ['helm', 'template', item.name, item.chart,
+          '--version', item.version,
+          '--namespace', item.namespace,
+          '--values', render_dir ~ '/values/' ~ item.values_file,
+          '--kube-version', render_kube_version]
+         + (['--repo', item.repo] if item.repo is defined else []) }}
+  register: render_release_manifests
+  changed_when: false
+  loop: "{{ golden_releases }}"
+  loop_control:
+    label: "{{ item.name }}@{{ item.version }}"
+  when: render_releases
+
+- name: Write the Helm release manifests
+  ansible.builtin.copy:
+    content: "{{ item.stdout }}\n"
+    dest: "{{ render_dir }}/releases/{{ item.item.name }}.yaml"
+    mode: "0644"
+  loop: "{{ render_release_manifests.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: render_releases

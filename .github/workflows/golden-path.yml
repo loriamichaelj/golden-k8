@@ -1,0 +1,343 @@
+# golden-k8 golden path: one parameter file → validated config → Terraform
+# checks → either a full local run (kind cluster, platform, app, smoke tests,
+# teardown) or, for every other provider, rendered and schema-checked
+# manifests. Nothing is ever provisioned in a cloud account.
+#
+# Call it from another repository:
+#   jobs:
+#     env:
+#       uses: <owner>/golden-k8/.github/workflows/golden-path.yml@<ref>
+#       with:
+#         config-file: environments/team-a.yaml
+#
+# The parameter file comes from the caller's checkout. golden-k8 itself
+# (Terraform, Ansible, manifests) is checked out a second time at golden-ref,
+# unless the caller is golden-k8 or a copy of it (template repositories).
+name: golden-path
+
+on:
+  workflow_call:
+    inputs:
+      config-file:
+        description: Parameter file, relative to the caller repository root.
+        type: string
+        required: true
+      apply:
+        description: >-
+          Create the environment and deploy to it. Only provider local (a kind
+          cluster on the runner) with spec.pipeline.apply runs; every other
+          environment is rendered and schema-checked.
+        type: boolean
+        default: false
+      golden-repository:
+        description: Repository to check out golden-k8 from when the caller is not golden-k8.
+        type: string
+        default: loriamichaelj/golden-k8
+      golden-ref:
+        description: golden-k8 ref (tag, branch or SHA) for that checkout.
+        type: string
+        default: main
+      checkout:
+        description: >-
+          auto: skip the golden-k8 checkout when the caller is golden-k8.
+          remote: always check it out (golden-k8's own CI uses this to test the path other repositories take).
+        type: string
+        default: auto
+    outputs:
+      provider:
+        description: The environment's provider.
+        value: ${{ jobs.config.outputs.provider }}
+      path:
+        description: "apply (kind run) or render (rendered and schema-checked only)."
+        value: ${{ jobs.config.outputs.path }}
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    name: config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      root: ${{ steps.golden.outputs.root }}
+      provider: ${{ steps.config.outputs.provider }}
+      name: ${{ steps.config.outputs.name }}
+      path: ${{ steps.config.outputs.path }}
+      smoke: ${{ steps.config.outputs.smoke }}
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Locate golden-k8
+        id: golden
+        env:
+          CHECKOUT: ${{ inputs.checkout }}
+          GOLDEN_REPOSITORY: ${{ inputs.golden-repository }}
+          GOLDEN_REF: ${{ inputs.golden-ref }}
+        run: |
+          case "$CHECKOUT" in
+            auto | remote) ;;
+            *) echo "::error::input checkout must be auto or remote (got '$CHECKOUT')"; exit 1 ;;
+          esac
+          if [ "$CHECKOUT" = auto ] && [ -f scripts/config.sh ] && [ -f ansible/playbooks/bootstrap.yml ]; then
+            echo "root=." >> "$GITHUB_OUTPUT"
+            echo "golden-k8: the caller repository itself"
+          else
+            echo "root=.golden-k8" >> "$GITHUB_OUTPUT"
+            echo "golden-k8: $GOLDEN_REPOSITORY@$GOLDEN_REF"
+          fi
+
+      - name: Checkout golden-k8
+        if: steps.golden.outputs.root != '.'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ inputs.golden-repository }}
+          ref: ${{ inputs.golden-ref }}
+          path: .golden-k8
+          persist-credentials: false
+
+      - name: Setup tools
+        if: steps.golden.outputs.root == '.'
+        uses: ./.github/actions/setup-tools
+
+      - name: Setup tools (golden-k8 checkout)
+        if: steps.golden.outputs.root != '.'
+        uses: ./.golden-k8/.github/actions/setup-tools
+        with:
+          root: .golden-k8
+
+      - name: Validate and normalize the parameter file
+        id: config
+        working-directory: ${{ steps.golden.outputs.root }}
+        env:
+          CONFIG_FILE: ${{ inputs.config-file }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          make config ENV="$GITHUB_WORKSPACE/$CONFIG_FILE"
+          get() { mise exec -- yq -r "$1" build/config.json; }
+          provider="$(get .spec.provider)" name="$(get .metadata.name)" profile="$(get .spec.observability.profile)"
+          if [ "$APPLY" = true ] && [ "$provider" = local ] && [ "$(get .spec.pipeline.apply)" = true ]; then
+            path=apply
+          else
+            path=render
+            if [ "$APPLY" = true ]; then
+              echo "::notice::apply requested, but only provider local with spec.pipeline.apply runs here: rendering $provider/$name instead"
+            fi
+          fi
+          smoke=false
+          if [ "$(get .spec.app.enabled)" = true ] && [ "$(get .spec.app.expose.enabled)" = true ]; then smoke=true; fi
+          {
+            echo "provider=$provider"
+            echo "name=$name"
+            echo "path=$path"
+            echo "smoke=$smoke"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Environment \`$name\`"
+            echo
+            echo "| Parameter file | Provider | Profile | Path | golden-k8 |"
+            echo "|---|---|---|---|---|"
+            echo "| \`$CONFIG_FILE\` | $provider | $profile | $path | $(git rev-parse --short HEAD) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the normalized config
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: golden-config-${{ steps.config.outputs.name }}
+          path: ${{ steps.golden.outputs.root }}/build/config.json
+          retention-days: 7
+          overwrite: true
+
+  terraform:
+    name: terraform
+    needs: config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ needs.config.outputs.root }}
+    steps:
+      - name: Checkout
+        if: needs.config.outputs.root == '.'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout golden-k8
+        if: needs.config.outputs.root != '.'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ inputs.golden-repository }}
+          ref: ${{ inputs.golden-ref }}
+          path: .golden-k8
+          persist-credentials: false
+
+      - name: Setup tools
+        if: needs.config.outputs.root == '.'
+        uses: ./.github/actions/setup-tools
+
+      - name: Setup tools (golden-k8 checkout)
+        if: needs.config.outputs.root != '.'
+        uses: ./.golden-k8/.github/actions/setup-tools
+        with:
+          root: .golden-k8
+
+      - name: Validate the provider stack
+        env:
+          PROVIDER: ${{ needs.config.outputs.provider }}
+        run: |
+          stack="terraform/stacks/$PROVIDER"
+          if [ ! -d "$stack" ]; then
+            echo "::notice::no Terraform stack for provider $PROVIDER yet: nothing to validate"
+            exit 0
+          fi
+          mise exec -- terraform -chdir="$stack" init -backend=false -input=false >/dev/null
+          mise exec -- terraform -chdir="$stack" validate
+
+      - name: Terraform tests (mocked providers)
+        run: make test-terraform
+
+      - name: Job summary
+        if: always()
+        run: cat build/summary/terraform.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+  deploy:
+    name: deploy + smoke (kind)
+    needs: [config, terraform]
+    if: needs.config.outputs.path == 'apply'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: ci
+    defaults:
+      run:
+        working-directory: ${{ needs.config.outputs.root }}
+    steps:
+      - name: Checkout
+        if: needs.config.outputs.root == '.'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout golden-k8
+        if: needs.config.outputs.root != '.'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ inputs.golden-repository }}
+          ref: ${{ inputs.golden-ref }}
+          path: .golden-k8
+          persist-credentials: false
+
+      - name: Setup tools
+        if: needs.config.outputs.root == '.'
+        uses: ./.github/actions/setup-tools
+
+      - name: Setup tools (golden-k8 checkout)
+        if: needs.config.outputs.root != '.'
+        uses: ./.golden-k8/.github/actions/setup-tools
+        with:
+          root: .golden-k8
+
+      - name: Download the normalized config
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: golden-config-${{ needs.config.outputs.name }}
+          path: ${{ needs.config.outputs.root }}/build
+
+      - name: Create the kind cluster
+        run: mise exec -- scripts/infra.sh up build/config.json
+
+      - name: Render and schema-check everything that will be applied
+        run: mise exec -- scripts/render.sh build/config.json
+
+      - name: Build the app image (< 20 MB) and load it into kind
+        run: mise exec -- scripts/image.sh build/config.json
+
+      - name: Bootstrap platform and app (twice, second run must change nothing)
+        run: |
+          mise exec -- scripts/playbook.sh bootstrap --check-idempotent
+          printf "### Bootstrap\n\n✅ Two runs; the second reported \`changed=0\` (idempotent).\n" > build/summary/bootstrap.md
+
+      - name: Unknown host through the shared Gateway → Envoy 404
+        run: |
+          port="$(mise exec -- yq -r '.spec.cluster.providerOverrides.hostHttpPort // 80' build/config.json)"
+          code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: unknown.localtest.me' "http://127.0.0.1:$port/")"
+          echo "HTTP $code"
+          test "$code" = 404
+
+      - name: Smoke tests (app via the Gateway, Prometheus scrape, dashboard, HPA)
+        if: needs.config.outputs.smoke == 'true'
+        run: mise exec -- scripts/playbook.sh smoke
+
+      - name: Observability (Grafana via the Gateway, targets up, memory budget)
+        run: mise exec -- scripts/observability.sh check
+
+      - name: Cluster diagnostics
+        if: failure()
+        run: |
+          KUBECONFIG="$(mise exec -- yq -r '.kubeconfig_path' build/contract.json)"
+          export KUBECONFIG
+          mise exec -- kubectl get pods -A -o wide
+          mise exec -- kubectl -n apps describe deployment,hpa,httproute hello || true
+          mise exec -- kubectl get events -A --sort-by=.lastTimestamp | tail -n 50
+
+      - name: Job summary
+        if: always()
+        run: |
+          for part in image render bootstrap smoke observability; do
+            if [ -f "build/summary/$part.md" ]; then cat "build/summary/$part.md"; echo; fi
+          done >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Destroy the kind cluster
+        if: always()
+        run: mise exec -- scripts/infra.sh down build/config.json
+
+  render:
+    name: render + schema check
+    needs: [config, terraform]
+    if: needs.config.outputs.path == 'render'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ needs.config.outputs.root }}
+    steps:
+      - name: Checkout
+        if: needs.config.outputs.root == '.'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout golden-k8
+        if: needs.config.outputs.root != '.'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ inputs.golden-repository }}
+          ref: ${{ inputs.golden-ref }}
+          path: .golden-k8
+          persist-credentials: false
+
+      - name: Setup tools
+        if: needs.config.outputs.root == '.'
+        uses: ./.github/actions/setup-tools
+
+      - name: Setup tools (golden-k8 checkout)
+        if: needs.config.outputs.root != '.'
+        uses: ./.golden-k8/.github/actions/setup-tools
+        with:
+          root: .golden-k8
+
+      - name: Download the normalized config
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: golden-config-${{ needs.config.outputs.name }}
+          path: ${{ needs.config.outputs.root }}/build
+
+      - name: Render and schema-check (no cluster, no credentials)
+        run: mise exec -- scripts/render.sh build/config.json
+
+      - name: Job summary
+        if: always()
+        run: cat build/summary/render.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true

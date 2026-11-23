@@ -102,6 +102,15 @@ case "$action" in
     info "    memory: monitoring ${used} MB, envoy-gateway-system $(mem_mb envoy-gateway-system) MB (working set)"
     [ "$used" -lt "$budget_mb" ] || fail "monitoring uses ${used} MB, over the $profile budget of ${budget_mb} MB"
     info "ok  observability memory ${used} MB < ${budget_mb} MB ($profile)"
+
+    mkdir -p "$BUILD/summary"
+    {
+      printf '### Observability (%s)\n\n| Check | Result |\n|---|---|\n' "$profile"
+      [ "$exposed" != true ] || printf '| Grafana through the Gateway | ✅ %s, admin login works |\n' "$url"
+      printf '| Prometheus targets | ✅ all %s up |\n' "$(promql 'count(up)' | yq '.[0].value[1]')"
+      printf '| Memory, monitoring namespace | ✅ %s MB (budget %s MB) |\n' "$used" "$budget_mb"
+      printf '| Memory, envoy-gateway-system | %s MB |\n' "$(mem_mb envoy-gateway-system)"
+    } > "$BUILD/summary/observability.md"
     ;;
 
   *) fail "unknown action: $action (check|login)" ;;

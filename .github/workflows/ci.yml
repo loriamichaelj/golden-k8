@@ -46,32 +46,6 @@ jobs:
       - name: Config contract tests
         run: make test-config
 
-      - name: Normalize CI environment
-        run: make config ENV=environments/local-ci.yaml
-
-      - name: Upload normalized config
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
-        with:
-          name: config-local-ci
-          path: build/config.json
-          retention-days: 7
-
-  terraform:
-    name: terraform tests
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup tools
-        uses: ./.github/actions/setup-tools
-
-      - name: Terraform tests (mocked providers)
-        run: make test-terraform
-
   app:
     name: app + manifests
     runs-on: ubuntu-24.04
@@ -91,57 +65,40 @@ jobs:
       - name: Kustomize overlays (kubeconform, strict)
         run: make test-manifests
 
-  local-e2e:
-    name: local e2e (kind)
-    needs: [config, terraform, app]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment: ci
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup tools
-        uses: ./.github/actions/setup-tools
-
-      - name: Create kind cluster
-        run: make infra-up ENV=environments/local-ci.yaml
-
-      - name: Check gateway port mapping
-        run: docker port golden-local-ci-control-plane 30080/tcp | grep -q '^127.0.0.1:80$'
-
-      - name: Build the app image (< 20 MB) and load it into kind
-        run: make image
-
-      - name: Bootstrap platform and app (twice, second run must change nothing)
-        run: mise exec -- scripts/playbook.sh bootstrap --check-idempotent
-
-      - name: Unknown host through the shared Gateway → Envoy 404
-        run: |
-          code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: unknown.localtest.me' http://127.0.0.1/)"
-          echo "HTTP $code"
-          test "$code" = 404
-
-      - name: Smoke tests (app via the Gateway, Prometheus scrape, dashboard, HPA)
-        run: make smoke
-
-      - name: Observability (Grafana via the Gateway, targets up, lite memory budget)
-        run: make check-observability
-
-      - name: Cluster diagnostics
-        if: failure()
-        run: |
-          KUBECONFIG="$(mise exec -- yq -r '.kubeconfig_path' build/contract.json)"
-          export KUBECONFIG
-          mise exec -- kubectl get pods -A -o wide
-          mise exec -- kubectl -n apps describe deployment,hpa,httproute hello || true
-          mise exec -- kubectl get events -A --sort-by=.lastTimestamp | tail -n 50
-
-      - name: Destroy kind cluster
-        if: always()
-        run: make infra-down ENV=environments/local-ci.yaml
+  # The golden path, exactly as other repositories call it: the local
+  # environment runs end to end on kind; the cloud examples are rendered and
+  # schema-checked with no credentials. One cloud entry takes the remote path
+  # (golden-k8 checked out a second time at this commit) to keep that tested.
+  golden-path:
+    name: golden path (${{ matrix.name }})
+    needs: [config, app]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: local-ci
+            config-file: environments/local-ci.yaml
+            apply: true
+            checkout: auto
+          - name: aws, remote checkout
+            config-file: environments/aws-example.yaml
+            apply: false
+            checkout: remote
+          - name: gcp
+            config-file: environments/gcp-example.yaml
+            apply: false
+            checkout: auto
+          - name: azure
+            config-file: environments/azure-example.yaml
+            apply: false
+            checkout: auto
+    uses: ./.github/workflows/golden-path.yml
+    with:
+      config-file: ${{ matrix.config-file }}
+      apply: ${{ matrix.apply }}
+      checkout: ${{ matrix.checkout }}
+      golden-repository: ${{ github.repository }}
+      golden-ref: ${{ github.sha }}
 
   secrets:
     name: secret scan

@@ -2,7 +2,7 @@
 - name: Load the normalized config, outputs contract and platform data
   ansible.builtin.set_fact:
     golden_config: "{{ lookup('ansible.builtin.file', golden_build_dir ~ '/config.json') | from_json }}"
-    golden_contract: "{{ lookup('ansible.builtin.file', golden_build_dir ~ '/contract.json') | from_json }}"
+    golden_contract: "{{ lookup('ansible.builtin.file', golden_contract_path) | from_json }}"
     golden_namespaces: "{{ (lookup('ansible.builtin.file', golden_platform_dir ~ '/namespaces.yaml') | from_yaml).namespaces }}"
     golden_release_catalog: "{{ (lookup('ansible.builtin.file', golden_platform_dir ~ '/releases.yaml') | from_yaml).releases }}"
     # Written by make image (local only); absent elsewhere.

@@ -112,3 +112,24 @@
       - "metrics:    {{ ((smoke_requests.stdout | from_json).data.result | first).value | last }} requests recorded"
       - "grafana:    dashboard golden-k8-hello {{ 'provisioned' if smoke_dashboard.status | default(0) == 200 else 'not checked (expose disabled)' }}"
       - "hpa:        {{ (smoke_hpa.resources | first).status.currentReplicas }} replicas, ScalingActive"
+
+- name: Create the summary directory
+  ansible.builtin.file:
+    path: "{{ golden_build_dir }}/summary"
+    state: directory
+    mode: "0755"
+
+- name: Write the smoke test summary (Markdown, for CI job summaries)
+  ansible.builtin.copy:
+    dest: "{{ golden_build_dir }}/summary/smoke.md"
+    mode: "0644"
+    content: |
+      ### Smoke tests
+
+      | Check | Result |
+      |---|---|
+      | App through the Gateway (`{{ golden_config.spec.app.expose.host }}`) | ✅ HTTP {{ smoke_hello.status }}, build `{{ smoke_hello.json.build.version }}` |
+      | Prometheus scrapes every app pod | ✅ {{ (smoke_up.stdout | from_json).data.result | length }} target(s), `up == 1` |
+      | Request metric recorded | ✅ `hello_http_requests_total` = {{ ((smoke_requests.stdout | from_json).data.result | first).value | last }} |
+      | Grafana dashboard `golden-k8-hello` | {{ '✅ provisioned' if smoke_dashboard.status | default(0) == 200 else '➖ not checked (Grafana not exposed)' }} |
+      | HPA resource metrics | ✅ ScalingActive, {{ (smoke_hpa.resources | first).status.currentReplicas }} replicas |

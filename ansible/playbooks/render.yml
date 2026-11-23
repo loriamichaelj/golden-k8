@@ -1,0 +1,14 @@
+# Render everything golden-k8 would apply, without a cluster (make render):
+# platform manifests, Helm values and releases, and the app.
+- name: Render the golden-k8 environment
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/golden.yml
+  pre_tasks:
+    - name: Load inputs
+      ansible.builtin.import_tasks: tasks/load.yml
+  roles:
+    - role: render
+      vars:
+        render_releases: true
