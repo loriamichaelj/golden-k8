@@ -10,6 +10,9 @@ spec:
   observability:
     profile: lite
     retentionDays: 2
+    expose:
+      enabled: true
+      host: grafana.localtest.me
   app:
     enabled: true
     image: golden-hello:dev

@@ -1,0 +1,53 @@
+# Metrics and dashboards (kube-prometheus-stack), sized by the observability
+# profile. Grafana is served on the shared Gateway when expose is enabled.
+- name: Read the Grafana admin Secret
+  kubernetes.core.k8s_info:
+    kind: Secret
+    name: grafana-admin
+    namespace: monitoring
+  register: observability_admin_secret
+
+# Generated once in the cluster and kept across runs: never written to the
+# repo, the rendered values or the logs. Read it with: make grafana
+- name: Generate the Grafana admin Secret
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: grafana-admin
+        namespace: monitoring
+        labels:
+          golden-k8/managed: "true"
+      type: Opaque
+      stringData:
+        admin-user: admin
+        admin-password: "{{ lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits']) }}"
+  no_log: true
+  when: observability_admin_secret.resources | length == 0
+
+- name: Install observability releases
+  ansible.builtin.include_role:
+    name: releases
+  vars:
+    releases_group: observability
+
+- name: Wait for the Grafana route to be accepted and resolved by the Gateway
+  kubernetes.core.k8s_info:
+    api_version: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    name: grafana
+    namespace: monitoring
+  register: observability_route
+  vars:
+    observability_route_ok: >-
+      {%- set route = observability_route.resources | first | default({}) -%}
+      {%- set true_types = route.status.parents | default([]) if route.status is defined else [] -%}
+      {%- set true_types = true_types | map(attribute='conditions') | flatten
+            | selectattr('status', 'equalto', 'True') | map(attribute='type') | list -%}
+      {{ 'Accepted' in true_types and 'ResolvedRefs' in true_types }}
+  until: observability_route_ok | bool
+  retries: 30
+  delay: 2
+  when: golden_config.spec.observability.expose.enabled

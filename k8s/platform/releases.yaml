@@ -2,6 +2,10 @@
 # Adding a release needs no code: add an entry and a values template.
 # Values templates live in templates/values/ and are rendered with the
 # normalized config + outputs contract into build/rendered/values/.
+#
+#   group     the role that installs it (gateway, observability, ...)
+#   profiles  observability profiles it belongs to (optional, default: all).
+#             Standard-only components list [standard].
 releases:
   - name: envoy-gateway
     group: gateway
@@ -10,3 +14,12 @@ releases:
     namespace: envoy-gateway-system
     values_file: envoy-gateway.yaml
     wait_timeout: 5m
+
+  - name: kube-prometheus-stack
+    group: observability
+    profiles: [lite, standard]
+    chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
+    version: 92.22.0
+    namespace: monitoring
+    values_file: kube-prometheus-stack.yaml
+    wait_timeout: 10m

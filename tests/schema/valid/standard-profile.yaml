@@ -1,0 +1,11 @@
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: demo
+spec:
+  provider: local
+  observability:
+    profile: standard
+    retentionDays: 7
+    expose:
+      host: grafana.demo.localtest.me

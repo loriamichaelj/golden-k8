@@ -102,6 +102,17 @@ jobs:
           echo "HTTP $code"
           test "$code" = 404
 
+      - name: Observability (Grafana via the Gateway, targets up, lite memory budget)
+        run: make check-observability
+
+      - name: Cluster diagnostics
+        if: failure()
+        run: |
+          KUBECONFIG="$(mise exec -- yq -r '.kubeconfig_path' build/contract.json)"
+          export KUBECONFIG
+          mise exec -- kubectl get pods -A -o wide
+          mise exec -- kubectl get events -A --sort-by=.lastTimestamp | tail -n 50
+
       - name: Destroy kind cluster
         if: always()
         run: make infra-down ENV=environments/local-ci.yaml

@@ -7,6 +7,7 @@
 # 2. Deep-merge defaults: _common → _cloud (aws/gcp/azure) → <provider> → environment
 # 3. Validate the result against schema/config.schema.json
 # 4. Semantic checks JSON Schema can't express
+# 5. CI only: force the lite observability profile (warns when overriding)
 # Output defaults to build/config.json.
 set -euo pipefail
 
@@ -58,6 +59,16 @@ errors="$(yq -r '
 if [ -n "$errors" ]; then
   printf '%s\n' "$errors" | sed 's/^/  /' >&2
   fail "$env_file failed semantic checks"
+fi
+
+# 5. CI always runs the lite observability profile: runners have ~7 GB of RAM.
+profile="$(yq -r '.spec.observability.profile' "$tmp")"
+if [ "${CI:-}" = "true" ] && [ "$profile" != "lite" ]; then
+  msg="spec.observability.profile '$profile' is ignored in CI: using lite"
+  printf 'config: warning: %s\n' "$msg" >&2
+  # GitHub Actions annotation (workflow commands are read from stdout)
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then printf '::warning file=%s::%s\n' "$env_file" "$msg"; fi
+  yq -i -o json '.spec.observability.profile = "lite"' "$tmp"
 fi
 
 mv "$tmp" "$out_file"

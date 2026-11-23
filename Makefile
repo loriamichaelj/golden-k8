@@ -64,8 +64,16 @@ infra-down: config ## Destroy the cluster for ENV
 	$(RUN) scripts/infra.sh down build/config.json
 
 .PHONY: bootstrap
-bootstrap: ## Install the platform layer with Ansible (needs make infra-up)
+bootstrap: ## Install the platform layer (gateway, observability) with Ansible (needs make infra-up)
 	$(RUN) scripts/bootstrap.sh
+
+.PHONY: check-observability
+check-observability: ## Grafana via the Gateway, Prometheus targets up, memory budget (needs make bootstrap)
+	$(RUN) scripts/observability.sh check
+
+.PHONY: grafana
+grafana: ## Print the Grafana URL and admin login for the running environment
+	$(RUN) scripts/observability.sh login
 
 .PHONY: image
 image: ## Build the sample app image and load it into kind
@@ -96,5 +104,5 @@ clean: ## Remove generated build output
 .PHONY: help
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make <target> [ENV=environments/<name>.yaml]\n"} \
-		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2 } \
+		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } \
 		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)

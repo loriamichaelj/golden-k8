@@ -12,6 +12,9 @@ spec:
         size: small
         min: 2
         max: 3
+  observability:
+    expose:
+      host: grafana.example.com
   app:
     expose:
       host: hello.example.com

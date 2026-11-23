@@ -63,13 +63,29 @@ make test-terraform   # Terraform tests for every module and stack (no cloud, no
 ## Platform bootstrap
 
 ```sh
-make bootstrap   # Ansible: preflight → render → namespaces → Envoy Gateway
+make bootstrap   # Ansible: preflight → render → namespaces → Envoy Gateway → observability
 ```
 
 Ansible only applies what it renders into `build/rendered/` from the config, the infrastructure outputs and the data in `k8s/platform/` (Helm releases, namespaces, templates). Every tool is pinned to the cluster in `build/contract.json`; nothing falls back to your default kubeconfig.
 
 - **Traffic:** Gateway API with Envoy Gateway. One shared `Gateway` (`golden-gateway`); apps attach `HTTPRoute`s. On kind it listens on `127.0.0.1:80`.
 - **Namespaces:** labelled `golden-k8/managed=true`. Workload namespaces get a ResourceQuota, LimitRange defaults, default-deny NetworkPolicies (DNS and gateway traffic allowed) and the `restricted` Pod Security standard.
+
+## Observability
+
+`kube-prometheus-stack` in the `monitoring` namespace: Prometheus, Grafana, kube-state-metrics and node-exporter. Prometheus picks up `ServiceMonitor`s and rules from every namespace.
+
+```sh
+make grafana               # URL and admin login (default: http://grafana.localtest.me)
+make check-observability   # Grafana via the Gateway, every Prometheus target up, memory budget
+```
+
+- **Profiles** (`spec.observability.profile`):
+  - `lite` (default): no Alertmanager, trimmed rules, small requests, under 1.5 GB.
+  - `standard`: adds Alertmanager and the full rule set.
+  - CI always uses `lite` and warns when the parameter file asks for something else.
+- **Grafana** is served on the shared Gateway at `spec.observability.expose.host`. `*.localtest.me` resolves to `127.0.0.1`, so the local URL works without editing `/etc/hosts`. The admin password is generated in the cluster (Secret `monitoring/grafana-admin`) on the first bootstrap. It is never written to the repo or the rendered values.
+- **Retention:** `spec.observability.retentionDays` (default 2), capped by size.
 
 Editors with the YAML language server (e.g. VS Code + `redhat.vscode-yaml`) get autocomplete and inline errors from `schema/golden.schema.json`.
 
