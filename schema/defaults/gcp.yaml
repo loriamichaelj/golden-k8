@@ -5,6 +5,7 @@
 #   project: ""                    GCP project; default: the provider's environment
 #                                  (GOOGLE_PROJECT or gcloud's default project)
 #   lbAnnotations: {}              merged over terraform/stacks/gcp/platform.yaml
-#   masterAuthorizedCidrs: []      who may reach the API endpoint (empty: anyone)
+#   masterAuthorizedCidrs: []      ranges allowed to reach the API endpoint
+#                                  (empty: the VPC only)
 #   deletionProtection: true       block terraform destroy of the cluster
 {}

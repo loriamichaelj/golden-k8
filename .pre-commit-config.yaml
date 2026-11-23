@@ -42,12 +42,12 @@ repos:
         name: actionlint
         entry: mise exec -- actionlint
         language: system
-        files: ^\.github/workflows/.*\.ya?ml$
+        files: ^(examples/[^/]+/)?\.github/workflows/.*\.ya?ml$
       - id: check-github-workflows
         name: schema · github workflows
         entry: mise exec -- check-jsonschema --builtin-schema vendor.github-workflows
         language: system
-        files: ^\.github/workflows/.*\.ya?ml$
+        files: ^(examples/[^/]+/)?\.github/workflows/.*\.ya?ml$
       - id: check-github-actions
         name: schema · github actions
         entry: mise exec -- check-jsonschema --builtin-schema vendor.github-actions

@@ -51,7 +51,8 @@ mock_resource "azurerm_user_assigned_identity" {
 
 mock_resource "azurerm_kubernetes_cluster" {
   defaults = {
-    id   = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/golden-test-rg/providers/Microsoft.ContainerService/managedClusters/golden-test"
-    fqdn = "golden-test-abcd1234.hcp.eastus.azmk8s.io"
+    id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/golden-test-rg/providers/Microsoft.ContainerService/managedClusters/golden-test"
+    fqdn         = "golden-test-abcd1234.hcp.eastus.azmk8s.io"
+    private_fqdn = "golden-test-abcd1234.privatelink.eastus.azmk8s.io"
   }
 }

@@ -72,7 +72,7 @@ variable "node_pools" {
 }
 
 variable "master_authorized_cidrs" {
-  description = "Ranges allowed to reach the API endpoint (providerOverrides.masterAuthorizedCidrs). Empty: no restriction."
+  description = "Ranges allowed to reach the API endpoint from outside the VPC (providerOverrides.masterAuthorizedCidrs). Empty: VPC only."
   type        = list(string)
   default     = []
 }

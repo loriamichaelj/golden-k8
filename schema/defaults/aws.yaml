@@ -3,5 +3,6 @@
 #
 # spec.cluster.providerOverrides understood by terraform/stacks/aws:
 #   lbAnnotations: {}                      merged over terraform/stacks/aws/platform.yaml
-#   endpointPublicAccessCidrs: [0.0.0.0/0] who may reach the public EKS API endpoint
+#   endpointPublicAccessCidrs: []          ranges for a public EKS API endpoint
+#                                          (empty: private endpoint only)
 {}

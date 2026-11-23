@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/loriamichaelj/golden-k8/v1/schema/golden.schema.json
+# Runs end to end in CI on a kind cluster (provider local).
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: team-a-dev
+  owner: team-a
+spec:
+  provider: local
+  observability:
+    profile: lite
+    retentionDays: 1

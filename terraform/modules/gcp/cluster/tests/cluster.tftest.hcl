@@ -84,8 +84,19 @@ run "cluster_settings" {
     error_message = "1.36: no default node pool"
   }
   assert {
-    condition     = length(google_container_cluster.this.master_authorized_networks_config) == 0
-    error_message = "no authorized networks by default"
+    condition = (
+      length(google_container_cluster.this.master_authorized_networks_config[0].cidr_blocks) == 0 &&
+      !google_container_cluster.this.master_authorized_networks_config[0].gcp_public_cidrs_access_enabled
+    )
+    error_message = "authorized networks always on; by default only the VPC reaches the endpoint"
+  }
+  assert {
+    condition     = google_container_cluster.this.datapath_provider == "ADVANCED_DATAPATH"
+    error_message = "Dataplane V2 enforces NetworkPolicies"
+  }
+  assert {
+    condition     = !google_container_cluster.this.master_auth[0].client_certificate_config[0].issue_client_certificate
+    error_message = "no client certificates"
   }
   assert {
     condition     = google_project_iam_member.nodes.role == "roles/container.defaultNodeServiceAccount"

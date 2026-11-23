@@ -103,6 +103,10 @@ resource "azurerm_kubernetes_cluster" "this" {
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
+  # Private cluster unless you list ranges for a public API server
+  # (providerOverrides.authorizedIpRanges).
+  private_cluster_enabled = length(var.authorized_ip_ranges) == 0
+
   dynamic "api_server_access_profile" {
     for_each = length(var.authorized_ip_ranges) > 0 ? [1] : []
     content {

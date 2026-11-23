@@ -67,7 +67,7 @@ variable "node_pools" {
 }
 
 variable "authorized_ip_ranges" {
-  description = "Ranges allowed to reach the API server (providerOverrides.authorizedIpRanges). Empty: no restriction."
+  description = "Ranges allowed to reach a public API server (providerOverrides.authorizedIpRanges). Empty: private cluster, reachable from the VNet only."
   type        = list(string)
   default     = []
 }

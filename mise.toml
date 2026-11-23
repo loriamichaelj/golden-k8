@@ -23,6 +23,8 @@ golangci-lint = "2.15.0"
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 gitleaks = "8.30.1"
+trivy = "0.76.1"
+checkov = "3.4.3"
 
 # Python-based tools (isolated environments via uv).
 # The Ansible runtime (ansible-core + kubernetes client) is locked separately
