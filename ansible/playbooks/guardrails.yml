@@ -1,0 +1,12 @@
+# Only the provider-existing guardrails, without contacting any cluster
+# (scripts/test-guardrails.sh runs it against fake kubeconfigs).
+- name: Check the existing-cluster guardrails
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/golden.yml
+  pre_tasks:
+    - name: Load inputs
+      ansible.builtin.import_tasks: tasks/load.yml
+  roles:
+    - role: guardrails

@@ -69,7 +69,10 @@ case "$action" in
     ;;
 
   check)
-    [ "$provider" = local ] || fail "check runs against local kind clusters only (provider: $provider)"
+    case "$provider" in
+      local | existing) ;;
+      *) fail "check runs against clusters on this machine only (provider: $provider)" ;;
+    esac
 
     if [ "$exposed" = true ]; then
       grafana_healthy() { [ "$(grafana /api/health)" = 200 ]; }

@@ -12,7 +12,8 @@
     quiet: true
 
 - name: Apply guardrails for existing clusters
-  ansible.builtin.include_tasks: existing.yml
+  ansible.builtin.include_role:
+    name: guardrails
   when: golden_config.spec.provider == 'existing'
 
 - name: Read cluster info

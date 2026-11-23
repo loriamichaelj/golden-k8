@@ -6,11 +6,16 @@
     that:
       - golden_config.spec.app.enabled
       - golden_config.spec.app.expose.enabled
-      - golden_provider == 'local'
+      - golden_provider in ['local', 'existing']
     fail_msg: >-
       Smoke tests need spec.app.enabled and spec.app.expose.enabled, and run
-      against provider local (got {{ golden_provider }}).
+      against a cluster on this machine: provider local or existing (got {{ golden_provider }}).
     quiet: true
+
+- name: Apply guardrails for existing clusters
+  ansible.builtin.include_role:
+    name: guardrails
+  when: golden_provider == 'existing'
 
 - name: Request the app through the Gateway
   ansible.builtin.uri:
@@ -88,6 +93,14 @@
   no_log: true
   when: golden_config.spec.observability.expose.enabled
 
+# metrics-server is installed on kind; an existing cluster may not have one.
+- name: Look up the resource metrics API
+  kubernetes.core.k8s_info:
+    api_version: apiregistration.k8s.io/v1
+    kind: APIService
+    name: v1beta1.metrics.k8s.io
+  register: smoke_metrics_api
+
 - name: Wait for the HPA to get resource metrics
   kubernetes.core.k8s_info:
     api_version: autoscaling/v2
@@ -103,6 +116,7 @@
   until: smoke_hpa_active | bool
   retries: 36
   delay: 5
+  when: smoke_metrics_api.resources | length > 0
 
 - name: Smoke test summary
   ansible.builtin.debug:
@@ -111,7 +125,9 @@
       - "prometheus: {{ (smoke_up.stdout | from_json).data.result | length }} hello target(s) up"
       - "metrics:    {{ ((smoke_requests.stdout | from_json).data.result | first).value | last }} requests recorded"
       - "grafana:    dashboard golden-k8-hello {{ 'provisioned' if smoke_dashboard.status | default(0) == 200 else 'not checked (expose disabled)' }}"
-      - "hpa:        {{ (smoke_hpa.resources | first).status.currentReplicas }} replicas, ScalingActive"
+      - >-
+        hpa:        {{ ((smoke_hpa.resources | first).status.currentReplicas | string ~ ' replicas, ScalingActive')
+        if smoke_hpa.resources is defined else 'not checked (no metrics API on this cluster)' }}
 
 - name: Create the summary directory
   ansible.builtin.file:
@@ -120,6 +136,10 @@
     mode: "0755"
 
 - name: Write the smoke test summary (Markdown, for CI job summaries)
+  vars:
+    smoke_hpa_result: >-
+      {{ ('✅ ScalingActive, ' ~ (smoke_hpa.resources | first).status.currentReplicas | string ~ ' replicas')
+         if smoke_hpa.resources is defined else '➖ not checked (no metrics API on this cluster)' }}
   ansible.builtin.copy:
     dest: "{{ golden_build_dir }}/summary/smoke.md"
     mode: "0644"
@@ -132,4 +152,4 @@
       | Prometheus scrapes every app pod | ✅ {{ (smoke_up.stdout | from_json).data.result | length }} target(s), `up == 1` |
       | Request metric recorded | ✅ `hello_http_requests_total` = {{ ((smoke_requests.stdout | from_json).data.result | first).value | last }} |
       | Grafana dashboard `golden-k8-hello` | {{ '✅ provisioned' if smoke_dashboard.status | default(0) == 200 else '➖ not checked (Grafana not exposed)' }} |
-      | HPA resource metrics | ✅ ScalingActive, {{ (smoke_hpa.resources | first).status.currentReplicas }} replicas |
+      | HPA resource metrics | {{ smoke_hpa_result }} |

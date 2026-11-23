@@ -1,0 +1,25 @@
+# make down for provider existing: remove what golden-k8 installed, keep the
+# cluster and anything golden-k8 does not manage. (provider local destroys the
+# whole kind cluster instead.)
+- name: Tear down golden-k8 from an existing cluster
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/golden.yml
+  module_defaults:
+    group/kubernetes.core.k8s:
+      kubeconfig: "{{ golden_contract.kubeconfig_path }}"
+      context: "{{ golden_contract.kube_context }}"
+  pre_tasks:
+    - name: Load inputs
+      ansible.builtin.import_tasks: tasks/load.yml
+
+    - name: Check this is an existing cluster
+      ansible.builtin.assert:
+        that:
+          - golden_provider == 'existing'
+        fail_msg: "teardown is for provider existing; make down destroys the kind cluster for provider local."
+        quiet: true
+  roles:
+    - role: guardrails
+    - role: teardown

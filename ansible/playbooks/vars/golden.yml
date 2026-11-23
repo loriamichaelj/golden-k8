@@ -3,6 +3,8 @@ golden_repo_root: "{{ playbook_dir | dirname | dirname }}"
 golden_build_dir: "{{ golden_repo_root }}/build"
 golden_platform_dir: "{{ golden_repo_root }}/k8s/platform"
 golden_app_dir: "{{ golden_repo_root }}/k8s/app"
+# provider existing: --confirm-existing / CONFIRM_EXISTING=yes sets this.
+golden_confirm_existing: false
 # Outputs contract: from the stack (make infra-up) or a placeholder (make render).
 golden_contract_path: "{{ golden_build_dir }}/contract.json"
 

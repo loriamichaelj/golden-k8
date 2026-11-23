@@ -1,6 +1,10 @@
 # yaml-language-server: $schema=../schema/golden.schema.json
 # Deploy the platform and sample app onto OrbStack's built-in Kubernetes.
-# golden-k8 creates no cluster here; preflight only accepts local contexts.
+# golden-k8 creates no cluster here, and only touches it when you confirm:
+#   make up    ENV=environments/existing-orbstack.yaml CONFIRM_EXISTING=yes
+#   make smoke CONFIRM_EXISTING=yes
+#   make down  ENV=environments/existing-orbstack.yaml CONFIRM_EXISTING=yes
+# Guardrails refuse any context outside allowedContexts or not on this machine.
 apiVersion: golden.k8/v1alpha1
 kind: Environment
 metadata:

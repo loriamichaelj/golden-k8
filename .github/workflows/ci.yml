@@ -46,6 +46,9 @@ jobs:
       - name: Config contract tests
         run: make test-config
 
+      - name: Existing-cluster guardrails (fake kubeconfigs, no cluster)
+        run: make test-guardrails
+
   app:
     name: app + manifests
     runs-on: ubuntu-24.04
