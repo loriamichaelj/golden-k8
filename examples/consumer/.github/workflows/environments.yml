@@ -1,0 +1,30 @@
+# Example: a team repository running its environments through golden-k8.
+# Copy this file to .github/workflows/ in your repository, next to an
+# environments/ directory with your parameter files.
+name: environments
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Runs end to end on a kind cluster inside the GitHub runner: creates the
+  # cluster, installs the platform and the sample app, runs the smoke tests,
+  # then deletes the cluster. No cloud account needed.
+  dev:
+    uses: loriamichaelj/golden-k8/.github/workflows/golden-path.yml@v1
+    with:
+      config-file: environments/dev.yaml
+      apply: true
+
+  # A cloud environment is validated, mock-tested and rendered: you see
+  # exactly what the cluster would get, with no credentials and no cost.
+  prod:
+    uses: loriamichaelj/golden-k8/.github/workflows/golden-path.yml@v1
+    with:
+      config-file: environments/prod-aws.yaml

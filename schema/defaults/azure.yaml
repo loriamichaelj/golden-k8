@@ -5,6 +5,7 @@
 #   subscriptionId: ""         default: the environment (ARM_SUBSCRIPTION_ID or
 #                              the Azure CLI's current subscription)
 #   lbAnnotations: {}          merged over terraform/stacks/azure/platform.yaml
-#   authorizedIpRanges: []     who may reach the API server (empty: anyone)
+#   authorizedIpRanges: []     ranges for a public API server
+#                              (empty: private cluster, the VNet only)
 #   skuTier: Free              AKS control plane tier: Free, Standard or Premium
 {}

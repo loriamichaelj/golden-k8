@@ -60,15 +60,24 @@ resource "google_container_cluster" "this" {
     enable_private_endpoint = false
   }
 
-  dynamic "master_authorized_networks_config" {
-    for_each = length(var.master_authorized_cidrs) > 0 ? [1] : []
-    content {
-      dynamic "cidr_blocks" {
-        for_each = var.master_authorized_cidrs
-        content {
-          cidr_block = cidr_blocks.value
-        }
+  # Authorized networks always on: the endpoint answers the VPC plus only the
+  # ranges you list (providerOverrides.masterAuthorizedCidrs).
+  master_authorized_networks_config {
+    gcp_public_cidrs_access_enabled = false
+    dynamic "cidr_blocks" {
+      for_each = var.master_authorized_cidrs
+      content {
+        cidr_block = cidr_blocks.value
       }
+    }
+  }
+
+  # Dataplane V2 (Cilium) enforces NetworkPolicies, which golden-k8 ships.
+  datapath_provider = "ADVANCED_DATAPATH"
+
+  master_auth {
+    client_certificate_config {
+      issue_client_certificate = false
     }
   }
 

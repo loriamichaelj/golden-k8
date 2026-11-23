@@ -1,0 +1,77 @@
+# Publishes a release when a vX.Y.Z tag is pushed, then moves the major tag
+# (vX) to it, so callers of `@vX` get the newest compatible release.
+#
+# Prepare first (scripts/release.sh prepare X.Y.Z, merged to main): the tagged
+# commit must default golden-ref to its own tag and have a CHANGELOG section.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write   # create the release, move the major tag
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup tools
+        uses: ./.github/actions/setup-tools
+        with:
+          tools: yq
+
+      - name: Check the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$TAG is not on main"; exit 1; }
+          mise exec -- scripts/release.sh check "$TAG"
+
+      - name: Publish the release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Release notes: this tag's CHANGELOG section.
+          awk -v tag="$TAG" '
+            $0 ~ "^## " tag " " { inside = 1; next }
+            inside && /^## / { exit }
+            inside { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+
+      - name: Move the major tag
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          major="${TAG%%.*}"
+          # Only move it forward: never point vX at an older release.
+          latest="$(git tag --list "$major.*.*" --sort=-v:refname | head -n 1)"
+          if [ "$latest" != "$TAG" ]; then
+            echo "::notice::$TAG is not the newest $major release ($latest); $major stays where it is"
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$major" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          echo "### Release $TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published, and \`$major\` now points at $GITHUB_SHA." >> "$GITHUB_STEP_SUMMARY"

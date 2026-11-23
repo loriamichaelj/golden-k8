@@ -36,6 +36,15 @@ lint: ## Run every linter and scanner against the whole repo
 secrets: ## Scan the full git history for secrets
 	$(RUN) gitleaks git --redact --no-banner --verbose
 
+.PHONY: security
+security: ## Trivy (gates on HIGH/CRITICAL) + Checkov (report) on Terraform modules and app manifests, SARIF in build/security
+	$(RUN) scripts/security-scan.sh
+
+.PHONY: release-prepare
+release-prepare: ## Prepare release VERSION=X.Y.Z: golden-ref default + CHANGELOG section (then PR, merge, tag)
+	@test -n "$(VERSION)" || { echo "usage: make release-prepare VERSION=X.Y.Z"; exit 1; }
+	$(RUN) scripts/release.sh prepare $(VERSION)
+
 .PHONY: test-config
 test-config: ## Config contract tests (schema fixtures + example environments)
 	$(RUN) scripts/test-config.sh

@@ -105,17 +105,17 @@ Cloud stacks are written to be applied, but golden-k8 never applies them: `make 
 - **Cluster** (`terraform-aws-modules/eks`): EKS at `cluster.version`, one managed node group per node pool (`small`/`medium`/`large` → `m7i.large`/`xlarge`/`2xlarge`, AL2023), access entries, EKS Pod Identity, and the add-ons VPC CNI, CoreDNS, kube-proxy, metrics-server and the EBS CSI driver (gp3 default StorageClass `ebs-csi-default-sc`).
 - **Gateway:** a Network Load Balancer through the EKS cloud controller. Settings shared with `make render` live in `terraform/stacks/aws/platform.yaml`.
 - **Kubeconfig:** exec-based (`aws eks get-token`), so it stores no credentials.
-- **`providerOverrides`:** `lbAnnotations` (merged over the defaults, e.g. for the AWS Load Balancer Controller) and `endpointPublicAccessCidrs` (who may reach the public API endpoint, default everyone).
+- **`providerOverrides`:** `lbAnnotations` (merged over the defaults, e.g. for the AWS Load Balancer Controller) and `endpointPublicAccessCidrs`. The API endpoint is private (reachable from the VPC) unless you list ranges here, which adds a public endpoint for them only.
 - **Tests:** subnet and NAT counts per `azCount`/`natGateway`, node groups per pool, add-ons, tags, the kubeconfig and the contract. A shared parity check (`terraform/tests/parity`) holds every stack, cloud or not, to the same contract keys and types.
 
 **GCP** (`terraform/stacks/gcp`, example `environments/gcp-example.yaml`):
 
 - **Network:** a custom-mode VPC with one regional subnet for the nodes and secondary ranges for pods and services (VPC-native). `natGateway` selects Cloud NAT: `single` uses automatically allocated addresses, `perZone` reserves one static address per zone. Cloud NAT is regional either way.
-- **Cluster:** a regional GKE cluster across `azCount` zones on the REGULAR release channel. Nodes are private when `privateSubnets: true`, and Workload Identity is on. Each node pool autoscales between its `min` and `max` across all zones (`small`/`medium`/`large` → `e2-standard-2`/`4`/`8`), on Container-Optimized OS with Secure Boot, as a dedicated node service account. GKE's Persistent Disk CSI driver provides the `standard-rwo` default StorageClass.
+- **Cluster:** a regional GKE cluster across `azCount` zones on the REGULAR release channel. Nodes are private when `privateSubnets: true`, Workload Identity is on, and Dataplane V2 enforces NetworkPolicies. Each node pool autoscales between its `min` and `max` across all zones (`small`/`medium`/`large` → `e2-standard-2`/`4`/`8`), on Container-Optimized OS with Secure Boot, as a dedicated node service account. GKE's Persistent Disk CSI driver provides the `standard-rwo` default StorageClass.
 - **Gateway:** an external passthrough Network Load Balancer (backend-service based). Settings shared with `make render` live in `terraform/stacks/gcp/platform.yaml`.
 - **Kubeconfig:** exec-based (`gke-gcloud-auth-plugin`), so it stores no credentials.
 - **Project:** `providerOverrides.project`, else the provider's environment (`GOOGLE_PROJECT` or gcloud's default project).
-- **Other `providerOverrides`:** `lbAnnotations`, `masterAuthorizedCidrs` (who may reach the API endpoint, default anyone) and `deletionProtection` (default `true`).
+- **Other `providerOverrides`:** `lbAnnotations`, `masterAuthorizedCidrs` (authorized networks are always on; by default only the VPC reaches the endpoint, list ranges to add more) and `deletionProtection` (default `true`).
 - **Labels:** every resource gets `metadata.tags` plus `golden-k8-environment`, `golden-k8-owner` and `golden-k8-managed` (GCP label keys can't contain `/`).
 - **Tests:** node, pod and service ranges, NAT per `natGateway`, node pools per pool, cluster settings, labels, the kubeconfig and the contract (including the parity check).
 
@@ -126,7 +126,7 @@ Cloud stacks are written to be applied, but golden-k8 never applies them: `make 
 - **Gateway:** a public Standard Load Balancer with a TCP health probe. An HTTP probe of `/` would get Envoy's 404 for an unknown host. Settings shared with `make render` live in `terraform/stacks/azure/platform.yaml`.
 - **Kubeconfig:** exec-based (`kubelogin` with the Azure CLI sign-in), so it stores no credentials.
 - **Subscription:** `providerOverrides.subscriptionId`, else the environment (`ARM_SUBSCRIPTION_ID` or the Azure CLI's current subscription).
-- **Other `providerOverrides`:** `lbAnnotations`, `authorizedIpRanges` (who may reach the API server, default anyone) and `skuTier` (`Free`, `Standard` or `Premium`; default `Free`).
+- **Other `providerOverrides`:** `lbAnnotations`, `authorizedIpRanges` (a private cluster, reachable from the VNet, unless you list ranges for a public API server) and `skuTier` (`Free`, `Standard` or `Premium`; default `Free`).
 - **Tags:** every taggable resource gets `metadata.tags` plus `golden-k8-environment`, `golden-k8-owner` and `golden-k8-managed`. Azure tag names can't contain `/`, and azurerm has no provider-level default tags, so each resource sets them.
 - **Tests:** node subnet and NAT per `natGateway`, overlap checks, system and user pools, pool-name collisions, cluster settings, tags, the kubeconfig and the contract (including the parity check).
 
@@ -191,11 +191,13 @@ This renders everything the environment would get, for any provider: the platfor
 ```yaml
 jobs:
   environment:
-    uses: <owner>/golden-k8/.github/workflows/golden-path.yml@<ref>
+    uses: loriamichaelj/golden-k8/.github/workflows/golden-path.yml@v1
     with:
       config-file: environments/team-a.yaml
       apply: true   # provider local only: run it end to end on kind
 ```
+
+[`examples/consumer/`](examples/consumer/) is a complete caller repository: one workflow and two parameter files (a local environment that runs end to end, and an AWS one that is rendered). To own and change golden-k8 itself instead, create a repository from this template; its CI then runs the workflow by local path.
 
 | Job | What it does |
 |---|---|
@@ -208,11 +210,31 @@ jobs:
 - **Checkouts:** the parameter file comes from your repository, and golden-k8 is checked out a second time at `golden-ref`. When the caller is golden-k8 itself (or a repository created from the template), the second checkout is skipped.
 - **This repository's CI:** it calls the workflow by local path for the local environment and for the three cloud examples. One of those calls forces the second checkout, so the path other repositories take stays tested. A separate job runs every Terraform test once.
 - **Caches:** the pinned tools, pre-commit environments and kubeconform schemas are cached between runs, so manifest checks don't depend on downloading schemas every time.
+- **Cloud apply:** the workflow has a `cloud apply` job with OIDC inputs (`oidc-aws-role-arn`, `oidc-gcp-*`, `oidc-azure-*`) for teams that adopt golden-k8 for real. It is disabled three ways: the schema refuses `spec.pipeline.apply: true` for clouds, the job only runs on `main` in a `dev` environment, and its first step fails. Enabling it also needs `id-token: write`, a remote Terraform backend and the cloud's OIDC trust.
+
+## Versions and releases
+
+- **Tags:** every release is a `vX.Y.Z` tag, and `vX` always points at the newest `vX.Y.Z`. Pin `@v1` to follow compatible releases, or an exact tag to control upgrades. A breaking change to the parameter file bumps its `apiVersion` and the major version.
+- **One version end to end:** the workflow's `golden-ref` input defaults to its own release tag, so `@v1.2.3` runs the Terraform, Ansible and manifests of v1.2.3.
+- **Cutting a release:** `make release-prepare VERSION=X.Y.Z` sets that default and adds a [`CHANGELOG.md`](CHANGELOG.md) section. Merge it, then tag the merge commit `vX.Y.Z` and push the tag. `.github/workflows/release.yml` checks the tag is on `main` and matches the default and the changelog, publishes the release with that section as notes, and moves `vX`.
+
+## Security scanning
+
+```sh
+make security   # Trivy + Checkov on terraform/modules and k8s/app, SARIF in build/security/
+```
+
+- **Trivy gates:** any HIGH or CRITICAL finding fails the scan. Accepted findings, each with its reason, are listed in [`.trivyignore`](.trivyignore).
+- **Checkov reports:** without its paid API its findings carry no severity, so they don't fail the build.
+- **Code scanning:** CI uploads both tools' SARIF, so findings show in the repository's Security tab.
+- **Scope:** the modules carry every provider's security settings (and the registry modules they wrap); the stacks only feed the parameter file into them, which static scanners can't evaluate.
+- **Privacy:** both tools run with telemetry and version checks off.
 
 ## Repository layout
 
 ```
 environments/   parameter files, one per environment
+examples/       a consumer repository that calls the reusable workflow
 schema/         parameter file JSON Schema + defaults
 terraform/      provider adapters (modules/), root stacks (stacks/), tests
 ansible/        bootstrap and smoke playbooks, roles

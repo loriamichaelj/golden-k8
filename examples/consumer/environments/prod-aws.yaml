@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/loriamichaelj/golden-k8/v1/schema/golden.schema.json
+# Validated, mock-tested and rendered only: golden-k8 never provisions cloud
+# resources, so spec.pipeline.apply stays false.
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: team-a-prod
+  owner: team-a
+  tags:
+    cost-center: "0000"
+spec:
+  provider: aws
+  region: us-east-1
+  network:
+    azCount: 3
+    natGateway: perZone
+  cluster:
+    nodePools:
+      - name: system
+        size: small
+        min: 2
+        max: 3
+      - name: apps
+        size: medium
+        min: 2
+        max: 6
+    providerOverrides:
+      endpointPublicAccessCidrs: [203.0.113.0/24]
+  app:
+    replicas: 3
+    expose:
+      host: hello.example.com

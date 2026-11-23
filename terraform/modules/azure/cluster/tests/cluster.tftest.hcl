@@ -60,8 +60,8 @@ run "system_and_user_pools" {
 
 run "cluster_settings" {
   assert {
-    condition     = output.cluster_endpoint == "https://golden-test-abcd1234.hcp.eastus.azmk8s.io:443"
-    error_message = "cluster_endpoint should be the cluster FQDN"
+    condition     = azurerm_kubernetes_cluster.this.private_cluster_enabled && output.cluster_endpoint == "https://golden-test-abcd1234.privatelink.eastus.azmk8s.io:443"
+    error_message = "private cluster by default; cluster_endpoint should be the private FQDN"
   }
   assert {
     condition = (
@@ -113,6 +113,10 @@ run "public_nodes_and_overrides" {
   assert {
     condition     = jsonencode(tolist(azurerm_kubernetes_cluster.this.api_server_access_profile[0].authorized_ip_ranges)) == jsonencode(["203.0.113.0/24"]) && azurerm_kubernetes_cluster.this.sku_tier == "Standard"
     error_message = "authorized IP ranges and tier from the overrides"
+  }
+  assert {
+    condition     = !azurerm_kubernetes_cluster.this.private_cluster_enabled && output.cluster_endpoint == "https://golden-test-abcd1234.hcp.eastus.azmk8s.io:443"
+    error_message = "with authorized ranges the API server is public, at the public FQDN"
   }
 }
 

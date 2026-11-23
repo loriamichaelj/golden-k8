@@ -38,9 +38,9 @@ variable "node_pools" {
 }
 
 variable "endpoint_public_access_cidrs" {
-  description = "Ranges allowed to reach the public API endpoint (providerOverrides.endpointPublicAccessCidrs)."
+  description = "Ranges allowed to reach a public API endpoint (providerOverrides.endpointPublicAccessCidrs). Empty: no public endpoint, the API is reachable from inside the VPC only."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "tags" {

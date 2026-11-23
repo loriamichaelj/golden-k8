@@ -47,7 +47,7 @@ run "contract" {
       output.contract.contract_version == "v1" &&
       output.contract.provider == "azure" &&
       output.contract.cluster_name == "golden-test" &&
-      output.contract.cluster_endpoint == "https://golden-test-abcd1234.hcp.eastus.azmk8s.io:443" &&
+      output.contract.cluster_endpoint == "https://golden-test-abcd1234.privatelink.eastus.azmk8s.io:443" &&
       output.contract.kubeconfig_path == "/tmp/golden-k8-test/kubeconfig-golden-test" &&
       output.contract.kube_context == "golden-test" &&
       output.contract.storage_class == "managed-csi" &&

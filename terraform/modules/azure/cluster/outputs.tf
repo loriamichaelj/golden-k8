@@ -5,7 +5,7 @@ output "cluster_name" {
 
 output "cluster_endpoint" {
   description = "Kubernetes API server URL."
-  value       = "https://${azurerm_kubernetes_cluster.this.fqdn}:443"
+  value       = "https://${azurerm_kubernetes_cluster.this.private_cluster_enabled ? azurerm_kubernetes_cluster.this.private_fqdn : azurerm_kubernetes_cluster.this.fqdn}:443"
 }
 
 output "cluster_ca_certificate" {

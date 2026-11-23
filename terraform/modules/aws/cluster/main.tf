@@ -28,9 +28,10 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.node_subnet_ids
 
-  # The golden path runs kubectl, Helm and Ansible from outside the VPC.
-  # Narrow the ranges with providerOverrides.endpointPublicAccessCidrs.
-  endpoint_public_access       = true
+  # Private endpoint always; a public one only for the ranges you list
+  # (providerOverrides.endpointPublicAccessCidrs), e.g. where the pipeline runs.
+  endpoint_private_access      = true
+  endpoint_public_access       = length(var.endpoint_public_access_cidrs) > 0
   endpoint_public_access_cidrs = var.endpoint_public_access_cidrs
 
   # Access entries only; whoever applies becomes cluster admin.

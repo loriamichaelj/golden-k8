@@ -51,7 +51,7 @@ module "cluster" {
   vpc_id                       = module.network.vpc_id
   node_subnet_ids              = module.network.node_subnet_ids
   node_pools                   = module.sizing.node_pools
-  endpoint_public_access_cidrs = try(local.overrides.endpointPublicAccessCidrs, ["0.0.0.0/0"])
+  endpoint_public_access_cidrs = try(local.overrides.endpointPublicAccessCidrs, [])
 }
 
 # Exec-based kubeconfig: no credentials in the file, tokens come from the AWS CLI.
