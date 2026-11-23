@@ -96,7 +96,7 @@ case "$action" in
       *) budget_mb=4000 ;;
     esac
     mem_mb() { # <namespace> → working-set memory in MB
-      promql "sum(container_memory_working_set_bytes{namespace=\"$1\",container!=\"\"})" \
+      promql "sum(container_memory_working_set_bytes{metrics_path=\"/metrics/resource\",namespace=\"$1\",container!=\"\"})" \
         | yq -r '.[0].value[1] // "0"' | awk '{ printf "%d\n", $1 / 1000000 }'
     }
     have_memory() { [ "$(mem_mb monitoring)" -gt 0 ]; }
