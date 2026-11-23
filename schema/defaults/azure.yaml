@@ -1,3 +1,10 @@
 # azure: validated and mock-tested only. Never applied (ADR-001).
 # Shared cloud defaults are in _cloud.yaml.
+#
+# spec.cluster.providerOverrides understood by terraform/stacks/azure:
+#   subscriptionId: ""         default: the environment (ARM_SUBSCRIPTION_ID or
+#                              the Azure CLI's current subscription)
+#   lbAnnotations: {}          merged over terraform/stacks/azure/platform.yaml
+#   authorizedIpRanges: []     who may reach the API server (empty: anyone)
+#   skuTier: Free              AKS control plane tier: Free, Standard or Premium
 {}

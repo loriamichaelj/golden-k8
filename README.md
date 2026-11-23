@@ -119,6 +119,17 @@ Cloud stacks are written to be applied, but golden-k8 never applies them: `make 
 - **Labels:** every resource gets `metadata.tags` plus `golden-k8-environment`, `golden-k8-owner` and `golden-k8-managed` (GCP label keys can't contain `/`).
 - **Tests:** node, pod and service ranges, NAT per `natGateway`, node pools per pool, cluster settings, labels, the kubeconfig and the contract (including the parity check).
 
+**Azure** (`terraform/stacks/azure`, example `environments/azure-example.yaml`):
+
+- **Network:** a resource group with a VNet and one node subnet (Azure subnets span every zone). Pods and services use overlay ranges outside the VNet (`192.168.0.0/16`, `172.16.0.0/16`), so `cidr` must not overlap them. `natGateway` attaches a NAT gateway to the node subnet: `single` with one public IP, `perZone` with one public IP per zone (a subnet takes a single NAT gateway). With `none`, egress goes through the cluster's load balancer.
+- **Cluster:** AKS at `cluster.version` with Azure CNI overlay and the Cilium data plane, so NetworkPolicies are enforced. Sign-in is through Microsoft Entra ID with Azure RBAC, local accounts are off, and whoever applies becomes cluster admin. Workload identity is on, and the control plane uses a user-assigned identity. The first node pool is the system pool and the rest are user pools, autoscaled across `azCount` zones on Azure Linux (`small`/`medium`/`large` → `Standard_D2s_v5`/`D4s_v5`/`D8s_v5`). AKS pool names are the pool names without dashes, at most 12 characters. The Azure Disk CSI driver provides the `managed-csi` default StorageClass.
+- **Gateway:** a public Standard Load Balancer with a TCP health probe. An HTTP probe of `/` would get Envoy's 404 for an unknown host. Settings shared with `make render` live in `terraform/stacks/azure/platform.yaml`.
+- **Kubeconfig:** exec-based (`kubelogin` with the Azure CLI sign-in), so it stores no credentials.
+- **Subscription:** `providerOverrides.subscriptionId`, else the environment (`ARM_SUBSCRIPTION_ID` or the Azure CLI's current subscription).
+- **Other `providerOverrides`:** `lbAnnotations`, `authorizedIpRanges` (who may reach the API server, default anyone) and `skuTier` (`Free`, `Standard` or `Premium`; default `Free`).
+- **Tags:** every taggable resource gets `metadata.tags` plus `golden-k8-environment`, `golden-k8-owner` and `golden-k8-managed`. Azure tag names can't contain `/`, and azurerm has no provider-level default tags, so each resource sets them.
+- **Tests:** node subnet and NAT per `natGateway`, overlap checks, system and user pools, pool-name collisions, cluster settings, tags, the kubeconfig and the contract (including the parity check).
+
 ## Platform bootstrap
 
 ```sh

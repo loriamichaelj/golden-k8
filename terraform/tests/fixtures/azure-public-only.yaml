@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../schema/golden.schema.json
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: test
+spec:
+  provider: azure
+  region: westeurope
+  network:
+    cidr: 10.40.0.0/20
+    azCount: 1
+    privateSubnets: false
+    natGateway: none
+  cluster:
+    nodePools:
+      - name: system
+        size: large
+        min: 1
+        max: 2

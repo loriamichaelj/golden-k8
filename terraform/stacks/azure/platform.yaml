@@ -1,0 +1,14 @@
+# What the platform layer needs to know about an AKS cluster, beyond its
+# endpoint. Read by main.tf (into the outputs contract) and by scripts/render.sh
+# (to render cloud manifests without a cluster), so both always agree.
+
+# AKS's built-in Azure Disk CSI driver (Premium SSD LRS), the default class.
+storage_class: managed-csi
+
+# Envoy Gateway's proxy Service becomes a public Azure Standard Load Balancer.
+# Its health probe uses TCP: an HTTP probe of "/" would get Envoy's 404 for
+# an unknown host and mark every node unhealthy. Add or replace annotations
+# with spec.cluster.providerOverrides.lbAnnotations.
+gateway_service_type: LoadBalancer
+lb_annotations:
+  service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: tcp
