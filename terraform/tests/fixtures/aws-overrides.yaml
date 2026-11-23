@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../../schema/golden.schema.json
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: test
+  tags:
+    team: example
+spec:
+  provider: aws
+  region: us-west-2
+  cluster:
+    providerOverrides:
+      endpointPublicAccessCidrs: [203.0.113.0/24]
+      lbAnnotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: external
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing

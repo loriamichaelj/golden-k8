@@ -1,3 +1,7 @@
 # aws: validated and mock-tested only. Never applied (ADR-001).
 # Shared cloud defaults are in _cloud.yaml.
+#
+# spec.cluster.providerOverrides understood by terraform/stacks/aws:
+#   lbAnnotations: {}                      merged over terraform/stacks/aws/platform.yaml
+#   endpointPublicAccessCidrs: [0.0.0.0/0] who may reach the public EKS API endpoint
 {}

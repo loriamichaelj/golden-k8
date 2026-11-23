@@ -6,8 +6,10 @@
 #   scripts/render.sh [build/config.json]
 #
 # Contract: build/contract.json when it belongs to this environment (after
-# make infra-up); otherwise a placeholder (build/render/contract.json) with the
-# provider's gateway shape and no real endpoints.
+# make infra-up); otherwise a placeholder (build/render/contract.json) with no
+# real endpoints. For cloud providers the placeholder takes the storage class,
+# gateway Service type and load balancer annotations from the provider stack's
+# platform.yaml (plus providerOverrides.lbAnnotations), exactly as the stack does.
 # Output: build/rendered/{platform,values,releases,app.yaml} and a Markdown
 # summary in build/summary/render.md.
 set -euo pipefail
@@ -34,8 +36,18 @@ if [ -f "$contract" ] && [ "$(yq -r '.provider' "$contract")" = "$provider" ] \
   contract_kind="outputs of the $provider stack (build/contract.json)"
 else
   contract="$BUILD/render/contract.json"
-  contract_kind="placeholder: no cluster, $provider gateway shape"
-  if [ "$provider" = local ]; then gw_type=NodePort gw_port=30080; else gw_type=LoadBalancer gw_port=null; fi
+  platform="$ROOT/terraform/stacks/$provider/platform.yaml"
+  if [ -f "$platform" ]; then
+    contract_kind="placeholder: no cluster, settings from terraform/stacks/$provider/platform.yaml"
+    storage_class="$(yq -r '.storage_class' "$platform")"
+    gw_type="$(yq -r '.gateway_service_type' "$platform")" gw_port=null
+    lb_annotations="$(PLATFORM="$platform" CONFIG="$BUILD/config.json" yq -n -o=json -I=0 \
+      '(load(strenv(PLATFORM)).lb_annotations // {}) * (load(strenv(CONFIG)).spec.cluster.providerOverrides.lbAnnotations // {})')"
+  else
+    contract_kind="placeholder: no cluster, $provider gateway shape"
+    storage_class=standard lb_annotations='{}'
+    if [ "$provider" = local ]; then gw_type=NodePort gw_port=30080; else gw_type=LoadBalancer gw_port=null; fi
+  fi
   cat > "$contract" <<JSON
 {
   "contract_version": "v1",
@@ -44,11 +56,11 @@ else
   "cluster_endpoint": "https://cluster.invalid",
   "kubeconfig_path": "/dev/null",
   "kube_context": "$cluster",
-  "storage_class": "standard",
+  "storage_class": "$storage_class",
   "gateway_service_type": "$gw_type",
   "gateway_node_port": $gw_port,
-  "lb_annotations": {},
-  "network_id": null,
+  "lb_annotations": $lb_annotations,
+  "network_id": "",
   "private_subnet_ids": []
 }
 JSON

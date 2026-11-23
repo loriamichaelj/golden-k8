@@ -11,10 +11,18 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 1
 fixtures="$ROOT/build/test-fixtures"
 mkdir -p "$fixtures"
+# One provider download per version for every module and stack (the AWS
+# provider alone is a few hundred MB). Lock file hashes are still verified.
+export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$ROOT/build/terraform-plugins}"
+mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 echo "fixtures:"
 for f in terraform/tests/fixtures/*.yaml; do
   scripts/config.sh "$f" "$fixtures/$(basename "${f%.yaml}").json" 2>&1 | sed 's/^/  /'
+done
+# The shipped cloud examples are fixtures too (env-<name>.json), so they always plan.
+for f in environments/*-example.yaml; do
+  scripts/config.sh "$f" "$fixtures/env-$(basename "${f%.yaml}").json" 2>&1 | sed 's/^/  /'
 done
 
 # Markdown summary for CI job summaries.
@@ -23,7 +31,7 @@ summary="$ROOT/build/summary/terraform.md"
 printf '### Terraform tests\n\nMocked providers: no cloud credentials, no Docker.\n\n| Module / stack | Passed | Failed | Result |\n|---|---:|---:|---|\n' > "$summary"
 
 status=0
-for dir in terraform/modules/*/ terraform/stacks/*/; do
+for dir in terraform/modules/*/ terraform/modules/*/*/ terraform/stacks/*/ terraform/tests/parity/; do
   [ -d "$dir/tests" ] || continue
   echo
   echo "== ${dir%/}"

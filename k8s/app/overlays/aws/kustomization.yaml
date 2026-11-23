@@ -1,4 +1,7 @@
 # aws: multi-zone node pools, so replicas also spread across zones.
+# Load balancing and storage come from the outputs contract, not this overlay:
+# the shared Gateway's Service gets the NLB annotations (terraform/stacks/aws/
+# platform.yaml), and the EBS CSI add-on provides the gp3 default StorageClass.
 # Rendered and schema-checked only; golden-k8 never applies to a cloud.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
