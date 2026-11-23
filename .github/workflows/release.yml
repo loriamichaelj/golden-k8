@@ -68,7 +68,9 @@ jobs:
             echo "::notice::$TAG is not the newest $major release ($latest); $major stays where it is"
             exit 0
           fi
-          if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" >/dev/null 2>&1; then
+          # git/ref (singular) is an exact lookup; git/refs/tags/v1 would also
+          # match v1.0.0 by prefix.
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$major" >/dev/null 2>&1; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" -f sha="$GITHUB_SHA" -F force=true >/dev/null
           else
             gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$major" -f sha="$GITHUB_SHA" >/dev/null
