@@ -1,251 +1,90 @@
 # golden-k8
 
-A cloud-agnostic **golden-path template** that takes a greenfield environment from nothing to a running, observable sample app, driven by a single parameter file:
+[![ci](https://github.com/loriamichaelj/golden-k8/actions/workflows/ci.yml/badge.svg)](https://github.com/loriamichaelj/golden-k8/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/loriamichaelj/golden-k8)](https://github.com/loriamichaelj/golden-k8/releases)
+
+A cloud-agnostic **golden path**: one parameter file takes an environment from nothing to a running, observable app.
 
 ```
 network → Kubernetes cluster → observability → sample app
 ```
 
-Built with GitHub Actions, Terraform, Ansible and Kubernetes manifests. It targets **AWS, GCP, Azure**, a **local kind cluster**, or an **existing cluster** through one interface.
+Built with GitHub Actions, Terraform, Ansible and Kubernetes manifests, for **AWS, GCP, Azure**, a **local kind cluster** or an **existing cluster**.
 
-> **Status: pre-alpha.** The repository foundation is in place; the features below are being built incrementally.
-
-## Principles
-
-- **One parameter file** describes an environment. Everything else is derived from it.
-- **Cloud-agnostic.** Only the network + cluster layer is provider-specific. Observability and apps are portable open-source components.
-- **Zero cost by default.** The full pipeline runs end to end on a local kind cluster, both on your machine and in CI. Cloud adapters are validated and tested against mocked providers. Nothing is provisioned in any cloud account, and no credentials are needed.
-- **Reusable two ways.** Call the reusable workflow from your own repo, or create a new repo from this template.
+- **Zero cost.** The full pipeline runs end to end on kind, locally and in CI. Cloud adapters are tested against mocked providers and never applied: no cloud account or credentials needed.
+- **Portable.** Only the network and cluster layer is provider-specific. Everything above it (Envoy Gateway, kube-prometheus-stack, the app) is the same everywhere.
+- **Reusable.** Call the workflow from your repository with `@v1`, or create a repository from this template.
 
 ## Quick start
 
-Requirements: [mise](https://mise.jdx.dev) and a Docker engine (Docker Desktop, OrbStack, Colima, …).
+Requires [mise](https://mise.jdx.dev) and a Docker engine (Docker Desktop, OrbStack, Colima, …).
 
 ```sh
-make tools   # install the pinned tool versions from mise.toml
-make hooks   # install the pre-commit hook
-make lint    # run every linter and scanner
-make help    # list all targets
-
-make up      # kind cluster → image → platform → app (environments/local.yaml)
-make smoke   # check the app end to end
-make down    # destroy it
+make tools   # pinned tool versions from mise.toml
+make up      # kind cluster → app image → platform → app
+make smoke   # end-to-end checks
+make down    # destroy the cluster
 ```
 
-Then open http://hello.localtest.me and http://grafana.localtest.me (`make grafana` prints the login).
+Then open http://hello.localtest.me and http://grafana.localtest.me (`make grafana` prints the login). `make help` lists every target.
 
 ## The parameter file
 
-An environment is one YAML file in `environments/`. Only `metadata.name` and `spec.provider` are required (plus `region` for clouds); everything else has a default in `schema/defaults/`.
+One YAML file per environment, in `environments/`. Only `metadata.name` and `spec.provider` are required (plus `region` for clouds); defaults live in `schema/defaults/`, and editors get completion from the JSON Schema.
 
 ```yaml
 # yaml-language-server: $schema=../schema/golden.schema.json
 apiVersion: golden.k8/v1alpha1
 kind: Environment
 metadata:
-  name: local
+  name: dev
 spec:
   provider: local   # local | existing | aws | gcp | azure
 ```
 
-```sh
-make config ENV=environments/local.yaml   # validate + merge defaults → build/config.json
-make test-config                          # schema test fixtures + example environments
-```
+| Provider | What it does |
+|---|---|
+| `local` | kind cluster on your Docker engine, end to end (`make up`). |
+| `existing` | Installs onto a cluster on this machine, such as OrbStack's (`CONFIRM_EXISTING=yes`). Remote clusters are always refused, and `make down` removes only what golden-k8 installed. |
+| `aws` / `gcp` / `azure` | VPC + EKS / GKE / AKS, validated, mock-tested and rendered only. API endpoints are private unless you list allowed ranges. |
 
-Editors with the YAML language server (e.g. VS Code + `redhat.vscode-yaml`) get autocomplete and inline errors from `schema/golden.schema.json`.
+`make render ENV=environments/aws-example.yaml` shows everything an environment would get, schema-checked, without a cluster.
 
-## Local cluster
-
-```sh
-make infra-up     # kind cluster for ENV (default environments/local.yaml) → build/contract.json
-make infra-down   # destroy it
-```
-
-The cluster runs on your local Docker engine. The API server and the gateway port listen on `127.0.0.1` only. Cloud environments (`aws`/`gcp`/`azure`) are refused: they are validated and tested with mocked providers, never applied.
-
-```sh
-make test-terraform                # Terraform tests for every module and stack (no cloud, no Docker)
-make test-terraform PROVIDER=aws   # one provider's stack and modules, plus the shared modules
-```
-
-## Existing cluster
-
-`provider: existing` installs the same platform and app onto a cluster golden-k8 did not create, for example OrbStack's Kubernetes (`environments/existing-orbstack.yaml`):
-
-```sh
-make up    ENV=environments/existing-orbstack.yaml CONFIRM_EXISTING=yes
-make smoke CONFIRM_EXISTING=yes
-make down  ENV=environments/existing-orbstack.yaml CONFIRM_EXISTING=yes
-```
-
-- **Nothing is created and no cluster is contacted by `make infra-up`.** It copies only `spec.cluster.existing.context` (never `current-context`) out of `$KUBECONFIG` into `build/`. Every later step uses that copy.
-- **Guardrails:** everything that changes the cluster (`image`, `bootstrap`, `smoke`, `down`) is refused unless:
-  - the context matches `spec.cluster.existing.allowedContexts` (default `orbstack`, `kind-*`, `docker-desktop`, `minikube`);
-  - its API server is on this machine (`127.0.0.1`, `localhost`, `*.orb.local`, `kubernetes.docker.internal`);
-  - you pass `CONFIRM_EXISTING=yes`.
-
-  Remote clusters are always refused, whatever `allowedContexts` says.
-- **`make down`** removes only what golden-k8 installed: the Gateway, the Helm releases and namespaces labelled `golden-k8/managed=true`. The cluster and every other namespace stay. CRDs from the charts are kept, because Helm never deletes CRDs.
-- **The image** is never pushed to a registry. OrbStack and Docker Desktop share Docker's image store; `kind-*` contexts get `kind load`.
-- **The gateway** is a `LoadBalancer` by default, reachable on localhost with OrbStack and Docker Desktop. Set `spec.cluster.providerOverrides.gatewayServiceType: NodePort` (plus `hostHttpPort`) for clusters without load balancers.
-- **metrics-server** is not installed here. The smoke test checks the HPA only when the cluster has a metrics API.
-
-```sh
-make test-guardrails   # the guardrails against fake kubeconfigs (no cluster needed)
-```
-
-## Cloud adapters
-
-Cloud stacks are written to be applied, but golden-k8 never applies them: `make infra-up` refuses every cloud environment. Each one is tested with mocked providers instead (`make test-terraform`), and `make render` shows what its cluster would get.
-
-**AWS** (`terraform/stacks/aws`, example `environments/aws-example.yaml`):
-
-- **Network** (`terraform-aws-modules/vpc`): a VPC across `azCount` zones. Public subnets hold the load balancers and NAT; with `privateSubnets: true` the nodes run in private subnets behind `natGateway` (`single` or `perZone`). Subnets carry the `kubernetes.io/role/elb` / `internal-elb` tags for load balancer discovery.
-- **Cluster** (`terraform-aws-modules/eks`): EKS at `cluster.version`, one managed node group per node pool (`small`/`medium`/`large` → `m7i.large`/`xlarge`/`2xlarge`, AL2023), access entries, EKS Pod Identity, and the add-ons VPC CNI, CoreDNS, kube-proxy, metrics-server and the EBS CSI driver (gp3 default StorageClass `ebs-csi-default-sc`).
-- **Gateway:** a Network Load Balancer through the EKS cloud controller. Settings shared with `make render` live in `terraform/stacks/aws/platform.yaml`.
-- **Kubeconfig:** exec-based (`aws eks get-token`), so it stores no credentials.
-- **`providerOverrides`:** `lbAnnotations` (merged over the defaults, e.g. for the AWS Load Balancer Controller) and `endpointPublicAccessCidrs`. The API endpoint is private (reachable from the VPC) unless you list ranges here, which adds a public endpoint for them only.
-- **Tests:** subnet and NAT counts per `azCount`/`natGateway`, node groups per pool, add-ons, tags, the kubeconfig and the contract. A shared parity check (`terraform/tests/parity`) holds every stack, cloud or not, to the same contract keys and types.
-
-**GCP** (`terraform/stacks/gcp`, example `environments/gcp-example.yaml`):
-
-- **Network:** a custom-mode VPC with one regional subnet for the nodes and secondary ranges for pods and services (VPC-native). `natGateway` selects Cloud NAT: `single` uses automatically allocated addresses, `perZone` reserves one static address per zone. Cloud NAT is regional either way.
-- **Cluster:** a regional GKE cluster across `azCount` zones on the REGULAR release channel. Nodes are private when `privateSubnets: true`, Workload Identity is on, and Dataplane V2 enforces NetworkPolicies. Each node pool autoscales between its `min` and `max` across all zones (`small`/`medium`/`large` → `e2-standard-2`/`4`/`8`), on Container-Optimized OS with Secure Boot, as a dedicated node service account. GKE's Persistent Disk CSI driver provides the `standard-rwo` default StorageClass.
-- **Gateway:** an external passthrough Network Load Balancer (backend-service based). Settings shared with `make render` live in `terraform/stacks/gcp/platform.yaml`.
-- **Kubeconfig:** exec-based (`gke-gcloud-auth-plugin`), so it stores no credentials.
-- **Project:** `providerOverrides.project`, else the provider's environment (`GOOGLE_PROJECT` or gcloud's default project).
-- **Other `providerOverrides`:** `lbAnnotations`, `masterAuthorizedCidrs` (authorized networks are always on; by default only the VPC reaches the endpoint, list ranges to add more) and `deletionProtection` (default `true`).
-- **Labels:** every resource gets `metadata.tags` plus `golden-k8-environment`, `golden-k8-owner` and `golden-k8-managed` (GCP label keys can't contain `/`).
-- **Tests:** node, pod and service ranges, NAT per `natGateway`, node pools per pool, cluster settings, labels, the kubeconfig and the contract (including the parity check).
-
-**Azure** (`terraform/stacks/azure`, example `environments/azure-example.yaml`):
-
-- **Network:** a resource group with a VNet and one node subnet (Azure subnets span every zone). Pods and services use overlay ranges outside the VNet (`192.168.0.0/16`, `172.16.0.0/16`), so `cidr` must not overlap them. `natGateway` attaches a NAT gateway to the node subnet: `single` with one public IP, `perZone` with one public IP per zone (a subnet takes a single NAT gateway). With `none`, egress goes through the cluster's load balancer.
-- **Cluster:** AKS at `cluster.version` with Azure CNI overlay and the Cilium data plane, so NetworkPolicies are enforced. Sign-in is through Microsoft Entra ID with Azure RBAC, local accounts are off, and whoever applies becomes cluster admin. Workload identity is on, and the control plane uses a user-assigned identity. The first node pool is the system pool and the rest are user pools, autoscaled across `azCount` zones on Azure Linux (`small`/`medium`/`large` → `Standard_D2s_v5`/`D4s_v5`/`D8s_v5`). AKS pool names are the pool names without dashes, at most 12 characters. The Azure Disk CSI driver provides the `managed-csi` default StorageClass.
-- **Gateway:** a public Standard Load Balancer with a TCP health probe. An HTTP probe of `/` would get Envoy's 404 for an unknown host. Settings shared with `make render` live in `terraform/stacks/azure/platform.yaml`.
-- **Kubeconfig:** exec-based (`kubelogin` with the Azure CLI sign-in), so it stores no credentials.
-- **Subscription:** `providerOverrides.subscriptionId`, else the environment (`ARM_SUBSCRIPTION_ID` or the Azure CLI's current subscription).
-- **Other `providerOverrides`:** `lbAnnotations`, `authorizedIpRanges` (a private cluster, reachable from the VNet, unless you list ranges for a public API server) and `skuTier` (`Free`, `Standard` or `Premium`; default `Free`).
-- **Tags:** every taggable resource gets `metadata.tags` plus `golden-k8-environment`, `golden-k8-owner` and `golden-k8-managed`. Azure tag names can't contain `/`, and azurerm has no provider-level default tags, so each resource sets them.
-- **Tests:** node subnet and NAT per `natGateway`, overlap checks, system and user pools, pool-name collisions, cluster settings, tags, the kubeconfig and the contract (including the parity check).
-
-## Platform bootstrap
-
-```sh
-make bootstrap   # Ansible: preflight → render → namespaces → Envoy Gateway → observability → app
-```
-
-Ansible only applies what it renders into `build/rendered/` from the config, the infrastructure outputs and the data in `k8s/` (Helm releases, namespaces, templates, the app overlays). Every tool is pinned to the cluster in `build/contract.json`; nothing falls back to your default kubeconfig. Helm also runs with its own config and cache under `build/helm/`, never your personal Helm repos.
-
-- **Traffic:** Gateway API with Envoy Gateway. One shared `Gateway` (`golden-gateway`); apps attach `HTTPRoute`s. On kind it listens on `127.0.0.1:80`.
-- **Namespaces:** labelled `golden-k8/managed=true`. Workload namespaces get a ResourceQuota, LimitRange defaults, default-deny NetworkPolicies (DNS, gateway and Prometheus traffic allowed) and the `restricted` Pod Security standard.
-
-## Observability
-
-`kube-prometheus-stack` in the `monitoring` namespace: Prometheus, Grafana, kube-state-metrics and node-exporter. Prometheus picks up `ServiceMonitor`s and rules from every namespace.
-
-```sh
-make grafana               # URL and admin login (default: http://grafana.localtest.me)
-make check-observability   # Grafana via the Gateway, every Prometheus target up, memory budget
-```
-
-- **Profiles** (`spec.observability.profile`):
-  - `lite` (default): no Alertmanager, trimmed rules, small requests, under 1.5 GB.
-  - `standard`: adds Alertmanager and the full rule set.
-  - CI always uses `lite` and warns when the parameter file asks for something else.
-- **Grafana** is served on the shared Gateway at `spec.observability.expose.host`. `*.localtest.me` resolves to `127.0.0.1`, so the local URL works without editing `/etc/hosts`. The admin password is generated in the cluster (Secret `monitoring/grafana-admin`) on the first bootstrap. It is never written to the repo or the rendered values.
-- **Retention:** `spec.observability.retentionDays` (default 2), capped by size.
-- **metrics-server** (kind only; managed clouds ship their own) feeds the app's HorizontalPodAutoscaler.
-
-## Sample app
-
-A small Go service in `app/` (`net/http`, `log/slog` JSON logs, `prometheus/client_golang`):
-
-- **Endpoints:** `/` (hello + build info), `/healthz`, `/readyz` (turns 503 on SIGTERM, before the listener closes) and `/metrics` (`hello_http_requests_total`, `hello_http_request_duration_seconds`, …).
-- **Image:** multi-stage build to `distroless/static:nonroot`, about 15 MB. `make image` fails at 20 MB or more and loads the image straight into kind. Nothing is pushed to a registry.
-- **Manifests** (`k8s/app/`): a Kustomize base with the Deployment, Service, HTTPRoute, HPA, PDB, ServiceMonitor and Grafana dashboard, plus one overlay per provider.
-  - The Deployment runs non-root with a read-only root filesystem, probes and resource limits.
-  - The cloud overlays also spread replicas across zones.
-  - Bootstrap renders a generated overlay on top. It sets the image, the HPA minimum from `spec.app.replicas`, and the hostname from `spec.app.expose.host`.
-- **Dashboard:** `golden-k8 / hello` in Grafana shows request rate, error ratio, latency quantiles, replicas, CPU and memory.
-
-```sh
-make test-app         # go test -race
-make test-manifests   # every overlay through kubeconform (strict, pinned Kubernetes + CRD schemas)
-make smoke            # app via the Gateway, Prometheus scrapes it, request metric recorded, dashboard provisioned, HPA has metrics
-```
-
-## Render without a cluster
-
-```sh
-make render ENV=environments/aws-example.yaml
-```
-
-This renders everything the environment would get, for any provider: the platform manifests, every Helm release (`helm template` with the rendered values) and the app. All of it is validated with kubeconform (strict, against pinned Kubernetes and CRD schemas). The output is plain YAML in `build/rendered/`, plus a summary of resources per file. Without a cluster, the outputs contract is a placeholder: no endpoints, but the provider stack's storage class and gateway settings (`terraform/stacks/<provider>/platform.yaml`, plus `providerOverrides.lbAnnotations`).
-
-## The golden path in CI
-
-`.github/workflows/golden-path.yml` is a reusable workflow. Call it from your own repository with your parameter file:
+## Use it from your repository
 
 ```yaml
 jobs:
-  environment:
+  dev:
     uses: loriamichaelj/golden-k8/.github/workflows/golden-path.yml@v1
     with:
-      config-file: environments/team-a.yaml
-      apply: true   # provider local only: run it end to end on kind
+      config-file: environments/dev.yaml
+      apply: true   # provider local: runs end to end on kind in the runner
 ```
 
-[`examples/consumer/`](examples/consumer/) is a complete caller repository: one workflow and two parameter files (a local environment that runs end to end, and an AWS one that is rendered). To own and change golden-k8 itself instead, create a repository from this template; its CI then runs the workflow by local path.
+Each run validates the parameter file, runs the Terraform tests, then either deploys to kind with smoke tests or renders and schema-checks the manifests, with summaries on the run page. See [`examples/consumer/`](examples/consumer/) for a complete caller repository.
 
-| Job | What it does |
-|---|---|
-| `config` | Validates and normalizes the parameter file. It uploads `config.json` as an artifact and forces the `lite` profile. |
-| `terraform` | Validates the provider's stack and runs its Terraform tests plus the shared modules', with mocked providers. |
-| `deploy + smoke (kind)` | *(local, `apply: true`)* Creates the kind cluster, renders and validates, builds and loads the image, and bootstraps twice (the second run must change nothing). Then it runs the smoke and observability checks and always tears the cluster down. It runs in the `ci` environment. |
-| `render + schema check` | *(every other environment)* Runs `make render`. It needs no cluster and no credentials. |
+`@v1` follows compatible releases; pin an exact tag (`@v1.0.0`) to control upgrades. Changes are in [`CHANGELOG.md`](CHANGELOG.md).
 
-- **Job summaries:** each job writes a summary to the run page: Terraform results, rendered resource counts, image size, smoke results and observability memory.
-- **Checkouts:** the parameter file comes from your repository, and golden-k8 is checked out a second time at `golden-ref`. When the caller is golden-k8 itself (or a repository created from the template), the second checkout is skipped.
-- **This repository's CI:** it calls the workflow by local path for the local environment and for the three cloud examples. One of those calls forces the second checkout, so the path other repositories take stays tested. A separate job runs every Terraform test once.
-- **Caches:** the pinned tools, pre-commit environments and kubeconform schemas are cached between runs, so manifest checks don't depend on downloading schemas every time.
-- **Cloud apply:** the workflow has a `cloud apply` job with OIDC inputs (`oidc-aws-role-arn`, `oidc-gcp-*`, `oidc-azure-*`) for teams that adopt golden-k8 for real. It is disabled three ways: the schema refuses `spec.pipeline.apply: true` for clouds, the job only runs on `main` in a `dev` environment, and its first step fails. Enabling it also needs `id-token: write`, a remote Terraform backend and the cloud's OIDC trust.
-
-## Versions and releases
-
-- **Tags:** every release is a `vX.Y.Z` tag, and `vX` always points at the newest `vX.Y.Z`. Pin `@v1` to follow compatible releases, or an exact tag to control upgrades. A breaking change to the parameter file bumps its `apiVersion` and the major version.
-- **One version end to end:** the workflow's `golden-ref` input defaults to its own release tag, so `@v1.2.3` runs the Terraform, Ansible and manifests of v1.2.3.
-- **Cutting a release:** `make release-prepare VERSION=X.Y.Z` sets that default and adds a [`CHANGELOG.md`](CHANGELOG.md) section. Merge it, then tag the merge commit `vX.Y.Z` and push the tag. `.github/workflows/release.yml` checks the tag is on `main` and matches the default and the changelog, publishes the release with that section as notes, and moves `vX`.
-
-## Security scanning
+## Checks
 
 ```sh
-make security   # Trivy + Checkov on terraform/modules and k8s/app, SARIF in build/security/
+make validate   # lint, config contract, Terraform (mocked), guardrails, app tests, manifests
+make security   # Trivy (fails on HIGH/CRITICAL) + Checkov, results in GitHub code scanning
 ```
 
-- **Trivy gates:** any HIGH or CRITICAL finding fails the scan. Accepted findings, each with its reason, are listed in [`.trivyignore`](.trivyignore).
-- **Checkov reports:** without its paid API its findings carry no severity, so they don't fail the build.
-- **Code scanning:** CI uploads both tools' SARIF, so findings show in the repository's Security tab.
-- **Scope:** the modules carry every provider's security settings (and the registry modules they wrap); the stacks only feed the parameter file into them, which static scanners can't evaluate.
-- **Privacy:** both tools run with telemetry and version checks off.
-
-## Repository layout
+## Layout
 
 ```
-environments/   parameter files, one per environment
-examples/       a consumer repository that calls the reusable workflow
-schema/         parameter file JSON Schema + defaults
-terraform/      provider adapters (modules/), root stacks (stacks/), tests
-ansible/        bootstrap and smoke playbooks, roles
-k8s/            platform data (Helm releases, templates) and sample app manifests (Kustomize)
+environments/   parameter files
+schema/         JSON Schema and defaults
+terraform/      provider modules, root stacks, tests
+ansible/        bootstrap, smoke and teardown playbooks
+k8s/            platform releases and templates, app manifests (Kustomize)
 app/            sample Go service
-.github/        CI, reusable workflow, composite actions
+examples/       a caller repository
 ```
 
-## Tooling
-
-Every tool version is pinned in [`mise.toml`](mise.toml) and locked with checksums in `mise.lock`. Local runs and CI use the same binaries.
+Tool versions are pinned in [`mise.toml`](mise.toml) and used both locally and in CI.
 
 ## License
 
