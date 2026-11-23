@@ -197,8 +197,10 @@ jobs:
           mise exec -- terraform -chdir="$stack" init -backend=false -input=false >/dev/null
           mise exec -- terraform -chdir="$stack" validate
 
-      - name: Terraform tests (mocked providers)
-        run: make test-terraform
+      - name: Terraform tests (this provider and the shared modules, mocked)
+        env:
+          PROVIDER: ${{ needs.config.outputs.provider }}
+        run: make test-terraform PROVIDER="$PROVIDER"
 
       - name: Job summary
         if: always()

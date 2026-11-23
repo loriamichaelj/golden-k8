@@ -41,8 +41,8 @@ test-config: ## Config contract tests (schema fixtures + example environments)
 	$(RUN) scripts/test-config.sh
 
 .PHONY: test-terraform
-test-terraform: ## Terraform tests for every module and stack (mocked, no cloud/Docker)
-	$(RUN) scripts/test-terraform.sh
+test-terraform: ## Terraform tests, mocked, no cloud/Docker (PROVIDER=aws: one provider + shared modules)
+	$(RUN) scripts/test-terraform.sh $(PROVIDER)
 
 .PHONY: test-app
 test-app: ## Sample app unit tests (go test -race)
