@@ -17,6 +17,16 @@ kubeEtcd:
 kubeProxy:
   enabled: false
 
+# Per-container CPU and memory come from the kubelet's /metrics/resource
+# endpoint (labelled metrics_path="/metrics/resource"): every kubelet serves
+# it, while some (OrbStack) expose only machine metrics on /metrics/cadvisor.
+# The golden-k8 dashboard and memory budget read only this endpoint, so the
+# cAdvisor copies of the same series are never counted twice.
+kubelet:
+  serviceMonitor:
+    resource: true
+    resourcePath: /metrics/resource
+
 defaultRules:
   create: true
   rules:
