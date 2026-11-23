@@ -5,10 +5,19 @@
 # scripts/config.sh first, so they always satisfy the config contract.
 # No cloud credentials or Docker needed: stacks use mock providers.
 # Writes a Markdown summary to build/summary/terraform.md.
+#
+#   scripts/test-terraform.sh             everything
+#   scripts/test-terraform.sh <provider>  one provider's stack and modules, plus
+#                                         the shared modules and the parity check
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 1
+provider="${1:-}"
+case "$provider" in
+  "" | local | existing | aws | gcp | azure) ;;
+  *) echo "test-terraform: unknown provider '$provider'" >&2; exit 2 ;;
+esac
 fixtures="$ROOT/build/test-fixtures"
 mkdir -p "$fixtures"
 # One provider download per version for every module and stack (the AWS
@@ -28,10 +37,19 @@ done
 # Markdown summary for CI job summaries.
 mkdir -p "$ROOT/build/summary"
 summary="$ROOT/build/summary/terraform.md"
-printf '### Terraform tests\n\nMocked providers: no cloud credentials, no Docker.\n\n| Module / stack | Passed | Failed | Result |\n|---|---:|---:|---|\n' > "$summary"
+scope="every module and stack"
+[ -z "$provider" ] || scope="provider \`$provider\` plus the shared modules"
+printf '### Terraform tests\n\nMocked providers: no cloud credentials, no Docker. Scope: %s.\n\n| Module / stack | Passed | Failed | Result |\n|---|---:|---:|---|\n' "$scope" > "$summary"
+
+# Shared modules sit directly under modules/; provider modules under modules/<provider>/.
+if [ -z "$provider" ]; then
+  dirs=(terraform/modules/*/ terraform/modules/*/*/ terraform/stacks/*/ terraform/tests/parity/)
+else
+  dirs=(terraform/modules/*/ terraform/modules/"$provider"/*/ terraform/stacks/"$provider"/ terraform/tests/parity/)
+fi
 
 status=0
-for dir in terraform/modules/*/ terraform/modules/*/*/ terraform/stacks/*/ terraform/tests/parity/; do
+for dir in "${dirs[@]}"; do
   [ -d "$dir/tests" ] || continue
   echo
   echo "== ${dir%/}"

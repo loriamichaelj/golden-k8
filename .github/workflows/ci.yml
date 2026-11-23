@@ -1,3 +1,14 @@
+# golden-k8's own CI.
+#
+#   lint            pre-commit: formatting, linters, schemas, tflint, ansible-lint
+#   config          config contract tests + existing-cluster guardrails
+#   terraform       every Terraform module and stack, mocked providers
+#   app             Go unit tests + every Kustomize overlay through kubeconform
+#   secrets         gitleaks over the full history
+#   golden-path     the reusable workflow, as other repositories call it:
+#                   local-ci end to end on kind; aws, gcp, azure rendered only
+#
+# Nothing here has cloud credentials or creates cloud resources.
 name: ci
 
 on:
@@ -52,6 +63,26 @@ jobs:
       - name: Existing-cluster guardrails (fake kubeconfigs, no cluster)
         run: make test-guardrails
 
+  terraform:
+    name: terraform (all stacks)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup tools
+        uses: ./.github/actions/setup-tools
+
+      - name: Terraform tests (every module and stack, mocked providers)
+        run: make test-terraform
+
+      - name: Job summary
+        if: always()
+        run: cat build/summary/terraform.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
   app:
     name: app + manifests
     runs-on: ubuntu-24.04
@@ -73,8 +104,10 @@ jobs:
 
   # The golden path, exactly as other repositories call it: the local
   # environment runs end to end on kind; the cloud examples are rendered and
-  # schema-checked with no credentials. One cloud entry takes the remote path
-  # (golden-k8 checked out a second time at this commit) to keep that tested.
+  # schema-checked with no credentials. Each entry's terraform job tests only
+  # its provider (the terraform job above covers everything once). One cloud
+  # entry takes the remote path (golden-k8 checked out a second time at this
+  # commit) to keep that tested.
   golden-path:
     name: golden path (${{ matrix.name }})
     needs: [config, app]

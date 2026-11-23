@@ -65,7 +65,8 @@ make infra-down   # destroy it
 The cluster runs on your local Docker engine. The API server and the gateway port listen on `127.0.0.1` only. Cloud environments (`aws`/`gcp`/`azure`) are refused: they are validated and tested with mocked providers, never applied.
 
 ```sh
-make test-terraform   # Terraform tests for every module and stack (no cloud, no Docker)
+make test-terraform                # Terraform tests for every module and stack (no cloud, no Docker)
+make test-terraform PROVIDER=aws   # one provider's stack and modules, plus the shared modules
 ```
 
 ## Existing cluster
@@ -177,13 +178,14 @@ jobs:
 | Job | What it does |
 |---|---|
 | `config` | Validates and normalizes the parameter file. It uploads `config.json` as an artifact and forces the `lite` profile. |
-| `terraform` | Validates the provider's stack and runs every Terraform test, with mocked providers. |
+| `terraform` | Validates the provider's stack and runs its Terraform tests plus the shared modules', with mocked providers. |
 | `deploy + smoke (kind)` | *(local, `apply: true`)* Creates the kind cluster, renders and validates, builds and loads the image, and bootstraps twice (the second run must change nothing). Then it runs the smoke and observability checks and always tears the cluster down. It runs in the `ci` environment. |
 | `render + schema check` | *(every other environment)* Runs `make render`. It needs no cluster and no credentials. |
 
 - **Job summaries:** each job writes a summary to the run page: Terraform results, rendered resource counts, image size, smoke results and observability memory.
 - **Checkouts:** the parameter file comes from your repository, and golden-k8 is checked out a second time at `golden-ref`. When the caller is golden-k8 itself (or a repository created from the template), the second checkout is skipped.
-- **This repository's CI:** it calls the workflow by local path for the local environment and for the three cloud examples. One of those calls forces the second checkout, so the path other repositories take stays tested.
+- **This repository's CI:** it calls the workflow by local path for the local environment and for the three cloud examples. One of those calls forces the second checkout, so the path other repositories take stays tested. A separate job runs every Terraform test once.
+- **Caches:** the pinned tools, pre-commit environments and kubeconform schemas are cached between runs, so manifest checks don't depend on downloading schemas every time.
 
 ## Repository layout
 

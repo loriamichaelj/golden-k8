@@ -1,5 +1,5 @@
 name: setup-tools
-description: Install the tool versions pinned in mise.toml (cached) and restore pre-commit environments.
+description: Install the tool versions pinned in mise.toml and restore the pre-commit and kubeconform schema caches.
 
 inputs:
   tools:
@@ -36,3 +36,18 @@ runs:
         key: >-
           pre-commit-${{ runner.os }}-${{ hashFiles(format('{0}/.pre-commit-config.yaml', inputs.root),
           format('{0}/mise.toml', inputs.root), format('{0}/mise.lock', inputs.root)) }}
+
+    # kubeconform schemas are pinned to commits in scripts/kubeconform.sh, so a
+    # cached copy never goes stale. Restoring it keeps manifest checks off the
+    # network (a failed schema download used to fail the whole job). The key
+    # changes when the pins or the manifests change, so new kinds get saved;
+    # older entries are restored as a base.
+    - name: Cache kubeconform schemas
+      if: inputs.tools == ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: ${{ inputs.root }}/build/kubeconform-cache
+        key: >-
+          kubeconform-${{ hashFiles(format('{0}/scripts/kubeconform.sh', inputs.root),
+          format('{0}/schema/defaults/_cloud.yaml', inputs.root), format('{0}/k8s/**', inputs.root)) }}
+        restore-keys: kubeconform-
