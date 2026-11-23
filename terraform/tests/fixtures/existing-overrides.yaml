@@ -1,0 +1,13 @@
+apiVersion: golden.k8/v1alpha1
+kind: Environment
+metadata:
+  name: test
+spec:
+  provider: existing
+  cluster:
+    existing:
+      context: kind-dev
+      storageClass: standard
+    providerOverrides:
+      gatewayServiceType: NodePort
+      hostHttpPort: 8081

@@ -1,0 +1,69 @@
+# Guardrails for provider existing (ADR-007): golden-k8 did not create this
+# cluster, so nothing touches it unless all of these hold. They run before any
+# task contacts the cluster (bootstrap, smoke, teardown), and only read local
+# files: the parameter file, the contract and the kubeconfig snapshot.
+- name: Require explicit confirmation to touch an existing cluster
+  ansible.builtin.assert:
+    that:
+      - golden_confirm_existing | bool
+    fail_msg: >-
+      {{ golden_contract.kube_context }} is a cluster golden-k8 did not create. Re-run with
+      CONFIRM_EXISTING=yes (make) or --confirm-existing (scripts/playbook.sh) to let golden-k8 change it.
+    quiet: true
+
+- name: Check the contract targets the context named in the parameter file
+  ansible.builtin.assert:
+    that:
+      - golden_contract.provider == 'existing'
+      - golden_contract.kube_context == golden_config.spec.cluster.existing.context
+    fail_msg: >-
+      build/contract.json targets context {{ golden_contract.kube_context }}, but the parameter file names
+      {{ golden_config.spec.cluster.existing.context }}. Run make infra-up again.
+    quiet: true
+
+- name: Check the context matches allowedContexts
+  vars:
+    # allowedContexts are globs: only * and ? are special.
+    guardrails_allowed: >-
+      {%- set found = namespace(ok=false) -%}
+      {%- for glob in golden_config.spec.cluster.existing.allowedContexts -%}
+      {%-   set pattern = '^' ~ (glob | regex_escape | replace('\\*', '.*') | replace('\\?', '.')) ~ '$' -%}
+      {%-   if golden_contract.kube_context is ansible.builtin.regex(pattern) -%}
+      {%-     set found.ok = true -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ found.ok }}
+  ansible.builtin.assert:
+    that:
+      - guardrails_allowed | bool
+    fail_msg: >-
+      Context {{ golden_contract.kube_context }} does not match spec.cluster.existing.allowedContexts
+      ({{ golden_config.spec.cluster.existing.allowedContexts | join(', ') }}).
+    quiet: true
+
+- name: Read the kubeconfig snapshot
+  ansible.builtin.set_fact:
+    guardrails_kubeconfig: "{{ lookup('ansible.builtin.file', golden_contract.kubeconfig_path) | from_yaml }}"
+
+- name: Check the snapshot holds only this context, on a local API server
+  vars:
+    guardrails_contexts: "{{ guardrails_kubeconfig.contexts | default([]) }}"
+    guardrails_cluster_name: "{{ (guardrails_contexts | first).context.cluster | default('') }}"
+    guardrails_server: >-
+      {{ (guardrails_kubeconfig.clusters | default([]) | selectattr('name', 'equalto', guardrails_cluster_name)
+          | map(attribute='cluster.server') | first) | default('') }}
+    guardrails_host: "{{ guardrails_server | regex_search('^https://(\\[[^\\]]+\\]|[^/:]+)', '\\1') | first | default('') }}"
+  ansible.builtin.assert:
+    that:
+      - guardrails_contexts | length == 1
+      - (guardrails_contexts | first).name == golden_contract.kube_context
+      - guardrails_server == golden_contract.cluster_endpoint
+      - >-
+        guardrails_host in ['127.0.0.1', 'localhost', '[::1]', 'kubernetes.docker.internal']
+        or guardrails_host is ansible.builtin.regex('\.orb\.local$')
+    fail_msg: >-
+      {{ golden_contract.kubeconfig_path }} must hold only context {{ golden_contract.kube_context }}, pointing at
+      {{ golden_contract.cluster_endpoint }} on this machine (127.0.0.1, localhost, *.orb.local,
+      kubernetes.docker.internal); it points at {{ guardrails_server | default('nothing', true) }}.
+      golden-k8 never installs onto remote clusters.
+    quiet: true

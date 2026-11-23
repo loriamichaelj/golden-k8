@@ -1,0 +1,89 @@
+# Remove only what golden-k8 installed on a cluster it did not create
+# (provider existing, make down). The cluster, and every namespace without the
+# golden-k8/managed=true label, are left alone.
+
+# Gateway first, while Envoy Gateway still runs to clean up its proxy.
+- name: Look up the shared Gateway
+  kubernetes.core.k8s_info:
+    api_version: gateway.networking.k8s.io/v1
+    kind: Gateway
+    name: golden-gateway
+    namespace: envoy-gateway-system
+  register: teardown_gateway
+
+- name: Delete the shared Gateway
+  kubernetes.core.k8s:
+    api_version: gateway.networking.k8s.io/v1
+    kind: Gateway
+    name: golden-gateway
+    namespace: envoy-gateway-system
+    state: absent
+    wait: true
+    wait_timeout: 120
+  when: teardown_gateway.resources | length > 0
+
+- name: Look up the golden GatewayClass
+  kubernetes.core.k8s_info:
+    api_version: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    name: golden
+  register: teardown_gatewayclass
+
+- name: Delete the golden GatewayClass
+  kubernetes.core.k8s:
+    api_version: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    name: golden
+    state: absent
+    wait: true
+    wait_timeout: 120
+  when: teardown_gatewayclass.resources | length > 0
+
+- name: Uninstall golden-k8 Helm releases
+  kubernetes.core.helm:
+    name: "{{ item.name }}"
+    release_namespace: "{{ item.namespace }}"
+    # Explicit, not module_defaults: helm must never fall back to ~/.kube/config.
+    kubeconfig: "{{ golden_contract.kubeconfig_path }}"
+    context: "{{ golden_contract.kube_context }}"
+    state: absent
+    wait: true
+  loop: "{{ golden_releases | reverse | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Find namespaces labelled golden-k8/managed=true
+  kubernetes.core.k8s_info:
+    kind: Namespace
+    label_selectors:
+      - golden-k8/managed=true
+  register: teardown_namespaces
+
+- name: Delete golden-k8 managed namespaces
+  kubernetes.core.k8s:
+    kind: Namespace
+    name: "{{ item }}"
+    state: absent
+    wait: true
+    wait_timeout: 300
+  loop: "{{ teardown_namespaces.resources | map(attribute='metadata.name') | list }}"
+
+- name: List CRDs left behind by the Helm charts
+  kubernetes.core.k8s_info:
+    api_version: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+  register: teardown_crds
+
+- name: Teardown summary
+  vars:
+    teardown_left: >-
+      {{ teardown_crds.resources | map(attribute='metadata.name')
+         | select('ansible.builtin.regex', '\.(gateway\.envoyproxy\.io|gateway\.networking\.k8s\.io|monitoring\.coreos\.com)$')
+         | list }}
+  ansible.builtin.debug:
+    msg:
+      - "removed: Gateway, GatewayClass, releases {{ golden_releases | map(attribute='name') | join(', ') }}"
+      - "removed namespaces: {{ teardown_namespaces.resources | map(attribute='metadata.name') | join(', ') or 'none' }}"
+      - >-
+        kept: the cluster, every unmanaged namespace, and {{ teardown_left | length }} CRDs from the charts
+        (Helm never deletes CRDs; delete them yourself if nothing else uses them)

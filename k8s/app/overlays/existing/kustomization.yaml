@@ -1,0 +1,15 @@
+# existing (a cluster on this machine golden-k8 did not create): the image is
+# built locally and handed over by make image (kind load, or OrbStack/Docker
+# Desktop sharing Docker's image store). It must never be pulled.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: Deployment
+      name: hello
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never

@@ -68,6 +68,32 @@ The cluster runs on your local Docker engine. The API server and the gateway por
 make test-terraform   # Terraform tests for every module and stack (no cloud, no Docker)
 ```
 
+## Existing cluster
+
+`provider: existing` installs the same platform and app onto a cluster golden-k8 did not create, for example OrbStack's Kubernetes (`environments/existing-orbstack.yaml`):
+
+```sh
+make up    ENV=environments/existing-orbstack.yaml CONFIRM_EXISTING=yes
+make smoke CONFIRM_EXISTING=yes
+make down  ENV=environments/existing-orbstack.yaml CONFIRM_EXISTING=yes
+```
+
+- **Nothing is created and no cluster is contacted by `make infra-up`.** It copies only `spec.cluster.existing.context` (never `current-context`) out of `$KUBECONFIG` into `build/`. Every later step uses that copy.
+- **Guardrails:** everything that changes the cluster (`image`, `bootstrap`, `smoke`, `down`) is refused unless:
+  - the context matches `spec.cluster.existing.allowedContexts` (default `orbstack`, `kind-*`, `docker-desktop`, `minikube`);
+  - its API server is on this machine (`127.0.0.1`, `localhost`, `*.orb.local`, `kubernetes.docker.internal`);
+  - you pass `CONFIRM_EXISTING=yes`.
+
+  Remote clusters are always refused, whatever `allowedContexts` says.
+- **`make down`** removes only what golden-k8 installed: the Gateway, the Helm releases and namespaces labelled `golden-k8/managed=true`. The cluster and every other namespace stay. CRDs from the charts are kept, because Helm never deletes CRDs.
+- **The image** is never pushed to a registry. OrbStack and Docker Desktop share Docker's image store; `kind-*` contexts get `kind load`.
+- **The gateway** is a `LoadBalancer` by default, reachable on localhost with OrbStack and Docker Desktop. Set `spec.cluster.providerOverrides.gatewayServiceType: NodePort` (plus `hostHttpPort`) for clusters without load balancers.
+- **metrics-server** is not installed here. The smoke test checks the HPA only when the cluster has a metrics API.
+
+```sh
+make test-guardrails   # the guardrails against fake kubeconfigs (no cluster needed)
+```
+
 ## Platform bootstrap
 
 ```sh

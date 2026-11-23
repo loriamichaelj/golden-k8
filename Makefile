@@ -11,6 +11,11 @@ RUN := $(if $(shell command -v mise 2>/dev/null),mise exec --,)
 # Parameter file for the environment being worked on.
 ENV ?= environments/local.yaml
 
+# provider existing: CONFIRM_EXISTING=yes lets golden-k8 change a cluster it
+# did not create (bootstrap, smoke, down). Guardrails refuse it otherwise.
+CONFIRM_EXISTING ?=
+confirm := $(if $(filter yes true 1,$(CONFIRM_EXISTING)),--confirm-existing)
+
 ##@ Setup
 
 .PHONY: tools
@@ -43,12 +48,16 @@ test-terraform: ## Terraform tests for every module and stack (mocked, no cloud/
 test-app: ## Sample app unit tests (go test -race)
 	cd app && $(RUN) go test -race -count=1 ./...
 
+.PHONY: test-guardrails
+test-guardrails: ## provider existing guardrails against fake kubeconfigs (no cluster)
+	$(RUN) scripts/test-guardrails.sh
+
 .PHONY: test-manifests
 test-manifests: ## Build every app overlay and validate it with kubeconform
 	$(RUN) scripts/test-manifests.sh
 
 .PHONY: validate
-validate: lint test-config test-terraform test-app test-manifests ## Full static validation
+validate: lint test-config test-terraform test-guardrails test-app test-manifests ## Full static validation
 
 ##@ Config
 
@@ -59,16 +68,16 @@ config: ## Merge defaults + ENV and validate into build/config.json
 ##@ Environment lifecycle
 
 .PHONY: infra-up
-infra-up: config ## Create the cluster for ENV (local: kind) → build/contract.json
+infra-up: config ## Create the cluster for ENV (local: kind; existing: kubeconfig snapshot only) → build/contract.json
 	$(RUN) scripts/infra.sh up build/config.json
 
 .PHONY: infra-down
-infra-down: config ## Destroy the cluster for ENV
+infra-down: config ## Destroy the cluster for ENV (existing: only forgets the state; use make down)
 	$(RUN) scripts/infra.sh down build/config.json
 
 .PHONY: bootstrap
 bootstrap: ## Install the platform and the app with Ansible (needs make infra-up and make image)
-	$(RUN) scripts/playbook.sh bootstrap
+	$(RUN) scripts/playbook.sh bootstrap $(confirm)
 
 .PHONY: check-observability
 check-observability: ## Grafana via the Gateway, Prometheus targets up, memory budget (needs make bootstrap)
@@ -80,7 +89,7 @@ grafana: ## Print the Grafana URL and admin login for the running environment
 
 .PHONY: image
 image: ## Build the sample app image (< 20 MB) and load it into kind (never pushed)
-	$(RUN) scripts/image.sh build/config.json
+	$(RUN) scripts/image.sh build/config.json $(confirm)
 
 .PHONY: up
 up: infra-up ## Full environment: config → infra → image → bootstrap (platform + app)
@@ -88,10 +97,11 @@ up: infra-up ## Full environment: config → infra → image → bootstrap (plat
 
 .PHONY: smoke
 smoke: ## Smoke tests: app via the Gateway, scraped by Prometheus, dashboard, HPA metrics
-	$(RUN) scripts/playbook.sh smoke
+	$(RUN) scripts/playbook.sh smoke $(confirm)
 
 .PHONY: down
-down: infra-down ## Tear down everything golden-k8 created for ENV
+down: config ## Tear down ENV: local destroys the kind cluster; existing removes only what golden-k8 installed
+	$(RUN) scripts/down.sh build/config.json $(confirm)
 
 .PHONY: render
 render: config ## Render + schema-check everything ENV would apply, no cluster needed (any provider)
