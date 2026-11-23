@@ -28,6 +28,9 @@ jobs:
         uses: ./.github/actions/setup-tools
 
       - name: Lint
+        env:
+          # tflint --init downloads its rulesets from GitHub releases.
+          GITHUB_TOKEN: ${{ github.token }}
         run: make lint
 
   config:

@@ -69,6 +69,11 @@ run "contract" {
   }
 }
 
+run "contract_parity" {
+  module { source = "../../tests/parity" }
+  variables { contract = run.contract.contract }
+}
+
 run "multiple_pools" {
   variables { config_path = "../../../build/test-fixtures/local-multipool.json" }
 

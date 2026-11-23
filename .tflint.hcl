@@ -1,5 +1,5 @@
-# Base ruleset. Cloud provider rulesets (aws, google, azurerm) are added
-# with their adapters.
+# Base ruleset plus one ruleset per cloud adapter. Plugin versions are pinned;
+# `tflint --init` downloads them (set GITHUB_TOKEN to avoid API rate limits).
 config {
   format = "compact"
 }
@@ -7,4 +7,11 @@ config {
 plugin "terraform" {
   enabled = true
   preset  = "recommended"
+}
+
+# Rules for aws_* resources (instance types, IAM, invalid values).
+plugin "aws" {
+  enabled = true
+  version = "0.50.0"
+  source  = "github.com/terraform-linters/tflint-ruleset-aws"
 }

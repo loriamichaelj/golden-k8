@@ -94,6 +94,19 @@ make down  ENV=environments/existing-orbstack.yaml CONFIRM_EXISTING=yes
 make test-guardrails   # the guardrails against fake kubeconfigs (no cluster needed)
 ```
 
+## Cloud adapters
+
+Cloud stacks are written to be applied, but golden-k8 never applies them: `make infra-up` refuses every cloud environment. Each one is tested with mocked providers instead (`make test-terraform`), and `make render` shows what its cluster would get.
+
+**AWS** (`terraform/stacks/aws`, example `environments/aws-example.yaml`):
+
+- **Network** (`terraform-aws-modules/vpc`): a VPC across `azCount` zones. Public subnets hold the load balancers and NAT; with `privateSubnets: true` the nodes run in private subnets behind `natGateway` (`single` or `perZone`). Subnets carry the `kubernetes.io/role/elb` / `internal-elb` tags for load balancer discovery.
+- **Cluster** (`terraform-aws-modules/eks`): EKS at `cluster.version`, one managed node group per node pool (`small`/`medium`/`large` → `m7i.large`/`xlarge`/`2xlarge`, AL2023), access entries, EKS Pod Identity, and the add-ons VPC CNI, CoreDNS, kube-proxy, metrics-server and the EBS CSI driver (gp3 default StorageClass `ebs-csi-default-sc`).
+- **Gateway:** a Network Load Balancer through the EKS cloud controller. Settings shared with `make render` live in `terraform/stacks/aws/platform.yaml`.
+- **Kubeconfig:** exec-based (`aws eks get-token`), so it stores no credentials.
+- **`providerOverrides`:** `lbAnnotations` (merged over the defaults, e.g. for the AWS Load Balancer Controller) and `endpointPublicAccessCidrs` (who may reach the public API endpoint, default everyone).
+- **Tests:** subnet and NAT counts per `azCount`/`natGateway`, node groups per pool, add-ons, tags, the kubeconfig and the contract. A shared parity check (`terraform/tests/parity`) holds every stack, cloud or not, to the same contract keys and types.
+
 ## Platform bootstrap
 
 ```sh
@@ -146,7 +159,7 @@ make smoke            # app via the Gateway, Prometheus scrapes it, request metr
 make render ENV=environments/aws-example.yaml
 ```
 
-This renders everything the environment would get, for any provider: the platform manifests, every Helm release (`helm template` with the rendered values) and the app. All of it is validated with kubeconform (strict, against pinned Kubernetes and CRD schemas). The output is plain YAML in `build/rendered/`, plus a summary of resources per file. Without a cluster, the outputs contract is a placeholder with the provider's gateway shape.
+This renders everything the environment would get, for any provider: the platform manifests, every Helm release (`helm template` with the rendered values) and the app. All of it is validated with kubeconform (strict, against pinned Kubernetes and CRD schemas). The output is plain YAML in `build/rendered/`, plus a summary of resources per file. Without a cluster, the outputs contract is a placeholder: no endpoints, but the provider stack's storage class and gateway settings (`terraform/stacks/<provider>/platform.yaml`, plus `providerOverrides.lbAnnotations`).
 
 ## The golden path in CI
 

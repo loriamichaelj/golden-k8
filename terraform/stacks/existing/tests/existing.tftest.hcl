@@ -31,6 +31,11 @@ run "orbstack" {
   }
 }
 
+run "contract_parity" {
+  module { source = "../../tests/parity" }
+  variables { contract = run.orbstack.contract }
+}
+
 run "docker_desktop_is_local" {
   command = plan
   variables { config_path = "../../../build/test-fixtures/existing-docker-desktop.json" }

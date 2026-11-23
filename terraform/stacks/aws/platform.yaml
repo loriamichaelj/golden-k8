@@ -1,0 +1,14 @@
+# What the platform layer needs to know about an EKS cluster, beyond its
+# endpoint. Read by main.tf (into the outputs contract) and by scripts/render.sh
+# (to render cloud manifests without a cluster), so both always agree.
+
+# Created and marked default by the EBS CSI add-on (gp3 volumes).
+storage_class: ebs-csi-default-sc
+
+# Envoy Gateway's proxy Service becomes a Network Load Balancer through the EKS
+# cloud controller (public subnets carry kubernetes.io/role/elb). Add or
+# replace annotations with spec.cluster.providerOverrides.lbAnnotations, e.g.
+# for the AWS Load Balancer Controller.
+gateway_service_type: LoadBalancer
+lb_annotations:
+  service.beta.kubernetes.io/aws-load-balancer-type: nlb
