@@ -1,0 +1,15 @@
+# Smoke tests against a bootstrapped environment (make smoke).
+- name: Smoke test the golden-k8 environment
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/golden.yml
+  module_defaults:
+    group/kubernetes.core.k8s:
+      kubeconfig: "{{ golden_contract.kubeconfig_path }}"
+      context: "{{ golden_contract.kube_context }}"
+  pre_tasks:
+    - name: Load inputs
+      ansible.builtin.import_tasks: tasks/load.yml
+  roles:
+    - role: smoke

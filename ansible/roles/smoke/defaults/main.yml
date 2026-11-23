@@ -1,0 +1,2 @@
+# PromQL through the API server proxy: nothing extra is exposed.
+smoke_prometheus_api: /api/v1/namespaces/monitoring/services/http:prometheus-operated:9090/proxy/api/v1/query?query=

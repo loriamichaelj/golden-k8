@@ -1,0 +1,28 @@
+# Shared by every golden-k8 playbook. Inputs are loaded by tasks/load.yml.
+golden_repo_root: "{{ playbook_dir | dirname | dirname }}"
+golden_build_dir: "{{ golden_repo_root }}/build"
+golden_platform_dir: "{{ golden_repo_root }}/k8s/platform"
+golden_app_dir: "{{ golden_repo_root }}/k8s/app"
+
+# Observability profile (config.sh already forced lite in CI).
+golden_profile: "{{ golden_config.spec.observability.profile }}"
+golden_provider: "{{ golden_config.spec.provider }}"
+
+# Releases for this profile and provider. Entries without `profiles` or
+# `providers` belong to all of them.
+golden_releases: >-
+  {%- set selected = [] -%}
+  {%- for release in golden_release_catalog -%}
+  {%-   if golden_profile in release.profiles | default([golden_profile])
+          and golden_provider in release.providers | default([golden_provider]) -%}
+  {%-     set _ = selected.append(release) -%}
+  {%-   endif -%}
+  {%- endfor -%}
+  {{ selected }}
+
+# Where the shared Gateway is reachable from this machine (kind: 127.0.0.1).
+golden_gateway_url: "http://127.0.0.1:{{ golden_config.spec.cluster.providerOverrides.hostHttpPort | default(80) }}"
+
+# kubectl pinned to the golden-k8 cluster (never the default kubeconfig).
+golden_kubectl: >-
+  kubectl --kubeconfig {{ golden_contract.kubeconfig_path | quote }} --context {{ golden_contract.kube_context | quote }}

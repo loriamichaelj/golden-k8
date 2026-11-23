@@ -9,3 +9,16 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+
+  - package-ecosystem: gomod
+    directory: /app
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /app
+    schedule:
+      interval: weekly

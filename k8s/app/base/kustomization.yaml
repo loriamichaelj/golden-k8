@@ -1,0 +1,24 @@
+# Sample app base: provider-agnostic. Provider overlays live in ../overlays/;
+# the render step adds a generated overlay on top (image, replicas, hostname).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apps
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: golden-k8
+resources:
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - servicemonitor.yaml
+configMapGenerator:
+  # Picked up by the Grafana dashboard sidecar (label grafana_dashboard).
+  - name: hello-dashboard
+    files:
+      - hello-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"

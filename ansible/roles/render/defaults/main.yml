@@ -1,2 +1,3 @@
 render_dir: "{{ golden_build_dir }}/rendered"
 render_platform_dir: "{{ golden_platform_dir }}"
+render_app_dir: "{{ golden_app_dir }}"

@@ -1,0 +1,114 @@
+# Smoke tests: the app answers through the Gateway, Prometheus scrapes it,
+# its request metric is recorded, the Grafana dashboard is provisioned and the
+# HPA gets resource metrics. Any failed check fails the play.
+- name: Check the environment can be smoke tested
+  ansible.builtin.assert:
+    that:
+      - golden_config.spec.app.enabled
+      - golden_config.spec.app.expose.enabled
+      - golden_provider == 'local'
+    fail_msg: >-
+      Smoke tests need spec.app.enabled and spec.app.expose.enabled, and run
+      against provider local (got {{ golden_provider }}).
+    quiet: true
+
+- name: Request the app through the Gateway
+  ansible.builtin.uri:
+    url: "{{ golden_gateway_url }}/"
+    headers:
+      Host: "{{ golden_config.spec.app.expose.host }}"
+    return_content: true
+    status_code: [200, 404, 503]
+  register: smoke_hello
+  until: smoke_hello.status == 200 and (smoke_hello.json.message | default('')) == 'hello from golden-k8'
+  retries: 20
+  delay: 3
+
+- name: Send traffic for the request metrics
+  ansible.builtin.uri:
+    url: "{{ golden_gateway_url }}/"
+    headers:
+      Host: "{{ golden_config.spec.app.expose.host }}"
+  loop: "{{ range(10) | list }}"
+  loop_control:
+    label: "request {{ item + 1 }}"
+
+- name: Wait until Prometheus scrapes every app pod (up == 1)
+  ansible.builtin.command:
+    cmd: "{{ golden_kubectl }} get --raw {{ smoke_prometheus_api ~ (smoke_query | urlencode) }}"
+  vars:
+    smoke_query: 'up{namespace="apps",service="hello"}'
+    smoke_targets: "{{ (smoke_up.stdout | from_json).data.result }}"
+  register: smoke_up
+  changed_when: false
+  until: >-
+    smoke_up.rc == 0
+    and smoke_targets | length >= golden_config.spec.app.replicas
+    and smoke_targets | map(attribute='value') | map('last') | reject('equalto', '1') | list | length == 0
+  retries: 24
+  delay: 5
+
+- name: Wait for the app request metric to be recorded
+  ansible.builtin.command:
+    cmd: "{{ golden_kubectl }} get --raw {{ smoke_prometheus_api ~ (smoke_query | urlencode) }}"
+  vars:
+    smoke_query: 'sum(hello_http_requests_total{namespace="apps",handler="hello",code="200"})'
+    smoke_result: "{{ (smoke_requests.stdout | from_json).data.result }}"
+  register: smoke_requests
+  changed_when: false
+  until: >-
+    smoke_requests.rc == 0
+    and smoke_result | length > 0
+    and (smoke_result | first).value | last | float > 0
+  retries: 24
+  delay: 5
+
+- name: Read the Grafana admin Secret
+  kubernetes.core.k8s_info:
+    kind: Secret
+    name: grafana-admin
+    namespace: monitoring
+  register: smoke_grafana_secret
+  no_log: true
+  when: golden_config.spec.observability.expose.enabled
+
+- name: Check the app dashboard is provisioned in Grafana
+  ansible.builtin.uri:
+    url: "{{ golden_gateway_url }}/api/dashboards/uid/golden-k8-hello"
+    headers:
+      Host: "{{ golden_config.spec.observability.expose.host }}"
+    url_username: "{{ smoke_grafana_secret.resources[0].data['admin-user'] | b64decode }}"
+    url_password: "{{ smoke_grafana_secret.resources[0].data['admin-password'] | b64decode }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  register: smoke_dashboard
+  until: smoke_dashboard.status == 200
+  retries: 20
+  delay: 3
+  no_log: true
+  when: golden_config.spec.observability.expose.enabled
+
+- name: Wait for the HPA to get resource metrics
+  kubernetes.core.k8s_info:
+    api_version: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: hello
+    namespace: apps
+  register: smoke_hpa
+  vars:
+    smoke_hpa_active: >-
+      {{ (smoke_hpa.resources | first).status.conditions | default([])
+         | selectattr('type', 'equalto', 'ScalingActive') | selectattr('status', 'equalto', 'True')
+         | list | length > 0 }}
+  until: smoke_hpa_active | bool
+  retries: 36
+  delay: 5
+
+- name: Smoke test summary
+  ansible.builtin.debug:
+    msg:
+      - "app:        {{ golden_config.spec.app.expose.host }} → HTTP {{ smoke_hello.status }}, build {{ smoke_hello.json.build.version }}"
+      - "prometheus: {{ (smoke_up.stdout | from_json).data.result | length }} hello target(s) up"
+      - "metrics:    {{ ((smoke_requests.stdout | from_json).data.result | first).value | last }} requests recorded"
+      - "grafana:    dashboard golden-k8-hello {{ 'provisioned' if smoke_dashboard.status | default(0) == 200 else 'not checked (expose disabled)' }}"
+      - "hpa:        {{ (smoke_hpa.resources | first).status.currentReplicas }} replicas, ScalingActive"

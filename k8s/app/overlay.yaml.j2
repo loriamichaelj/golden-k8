@@ -1,0 +1,58 @@
+# Rendered by golden-k8 (role: render) into build/rendered/app/. Do not edit build/ output.
+# Generated overlay: provider overlay + values from the parameter file.
+{% set app = golden_config.spec.app %}
+{% set ref = app.image %}
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - {{ (golden_app_dir ~ '/overlays/' ~ golden_provider) | relpath(render_dir ~ '/app') }}
+images:
+  - name: golden-hello
+{% if '@' in ref %}
+    newName: {{ ref.split('@', 1)[0] }}
+    digest: {{ ref.split('@', 1)[1] }}
+{% else %}
+    newName: {{ ref.rpartition(':')[0] }}
+    newTag: "{{ ref.rpartition(':')[2] }}"
+{% endif %}
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: hello
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: {{ app.replicas }}
+      - op: replace
+        path: /spec/maxReplicas
+        value: {{ [app.replicas * 2, 2] | max }}
+{% if app.expose.enabled %}
+  - target:
+      kind: HTTPRoute
+      name: hello
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value: [{{ app.expose.host }}]
+{% else %}
+  - target:
+      kind: HTTPRoute
+      name: hello
+    patch: |-
+      $patch: delete
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: hello
+{% endif %}
+{% if golden_image.image | default('') == ref %}
+  # Locally built image (make image): a new build rolls the Deployment.
+  - target:
+      kind: Deployment
+      name: hello
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations
+        value:
+          golden-k8/image-id: "{{ golden_image.id }}"
+{% endif %}

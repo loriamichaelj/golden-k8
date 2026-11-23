@@ -10,7 +10,6 @@ Thumbs.db
 
 # --- Build outputs (normalized config, rendered manifests) ---
 build/
-k8s/app/overlays/generated/
 
 # --- Terraform ---
 **/.terraform/*

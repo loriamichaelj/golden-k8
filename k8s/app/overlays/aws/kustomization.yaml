@@ -1,0 +1,8 @@
+# aws: multi-zone node pools, so replicas also spread across zones.
+# Rendered and schema-checked only; golden-k8 never applies to a cloud.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+components:
+  - ../../components/zone-spread

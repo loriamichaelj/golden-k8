@@ -2,6 +2,7 @@
   kubernetes.core.helm:
     name: "{{ item.name }}"
     chart_ref: "{{ item.chart }}"
+    chart_repo_url: "{{ item.repo | default(omit) }}"
     chart_version: "{{ item.version }}"
     release_namespace: "{{ item.namespace }}"
     # Explicit, not module_defaults: helm must never fall back to ~/.kube/config.

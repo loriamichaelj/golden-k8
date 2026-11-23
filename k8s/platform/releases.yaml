@@ -4,8 +4,10 @@
 # normalized config + outputs contract into build/rendered/values/.
 #
 #   group     the role that installs it (gateway, observability, ...)
+#   repo      Helm repository URL (optional; omitted for oci:// charts)
 #   profiles  observability profiles it belongs to (optional, default: all).
 #             Standard-only components list [standard].
+#   providers providers it is installed on (optional, default: all)
 releases:
   - name: envoy-gateway
     group: gateway
@@ -23,3 +25,14 @@ releases:
     namespace: monitoring
     values_file: kube-prometheus-stack.yaml
     wait_timeout: 10m
+
+  # Resource metrics for the HPA. Managed clouds ship their own.
+  - name: metrics-server
+    group: observability
+    providers: [local]
+    chart: metrics-server
+    repo: https://kubernetes-sigs.github.io/metrics-server/
+    version: 3.14.0
+    namespace: kube-system
+    values_file: metrics-server.yaml
+    wait_timeout: 5m
