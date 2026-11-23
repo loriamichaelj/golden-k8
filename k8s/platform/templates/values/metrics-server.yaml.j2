@@ -1,0 +1,12 @@
+# Rendered by golden-k8 (role: render). Do not edit build/ output.
+{% if golden_provider == 'local' %}
+args:
+  # kind kubelets serve self-signed certificates.
+  - --kubelet-insecure-tls
+{% endif %}
+resources:
+  requests:
+    cpu: 20m
+    memory: 32Mi
+  limits:
+    memory: 96Mi

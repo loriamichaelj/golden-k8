@@ -1,0 +1,24 @@
+# golangci-lint v2: run with `cd app && golangci-lint run ./...` (pre-commit does).
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - noctx
+    - revive
+    - unconvert
+    - usestdlibvars
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - golden-k8/app

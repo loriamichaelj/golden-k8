@@ -8,6 +8,7 @@
   loop:
     - "{{ render_dir }}/platform"
     - "{{ render_dir }}/values"
+    - "{{ render_dir }}/app"
 
 - name: Render platform manifests
   ansible.builtin.template:
@@ -26,3 +27,24 @@
   loop: "{{ golden_releases }}"
   loop_control:
     label: "{{ item.name }}"
+
+- name: Render the app overlay
+  ansible.builtin.template:
+    src: "{{ render_app_dir }}/overlay.yaml.j2"
+    dest: "{{ render_dir }}/app/kustomization.yaml"
+    mode: "0644"
+  when: golden_config.spec.app.enabled
+
+- name: Build the app manifests with Kustomize
+  ansible.builtin.command:
+    cmd: "{{ golden_kubectl }} kustomize {{ render_dir | quote }}/app"
+  register: render_app_build
+  changed_when: false
+  when: golden_config.spec.app.enabled
+
+- name: Write the app manifests
+  ansible.builtin.copy:
+    content: "{{ render_app_build.stdout }}\n"
+    dest: "{{ render_dir }}/app.yaml"
+    mode: "0644"
+  when: golden_config.spec.app.enabled

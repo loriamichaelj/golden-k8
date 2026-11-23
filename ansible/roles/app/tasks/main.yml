@@ -1,0 +1,51 @@
+# Sample app: apply the rendered Kustomize output and wait until the HPA
+# minimum of replicas is ready.
+- name: Apply the app manifests
+  kubernetes.core.k8s:
+    src: "{{ golden_build_dir }}/rendered/app.yaml"
+    state: present
+    server_side_apply:
+      field_manager: golden-k8
+      force_conflicts: true
+    wait: true
+    wait_timeout: 180
+
+# Apply never prunes: drop the route explicitly when expose is turned off.
+- name: Remove the app route when expose is disabled
+  kubernetes.core.k8s:
+    api_version: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    name: hello
+    namespace: apps
+    state: absent
+  when: not golden_config.spec.app.expose.enabled
+
+- name: Wait for the minimum number of ready replicas
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: hello
+    namespace: apps
+  register: app_deployment
+  until: >-
+    (app_deployment.resources | first).status.readyReplicas | default(0) >= golden_config.spec.app.replicas
+  retries: 60
+  delay: 3
+
+- name: Wait for the app route to be accepted and resolved by the Gateway
+  kubernetes.core.k8s_info:
+    api_version: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    name: hello
+    namespace: apps
+  register: app_route
+  vars:
+    app_route_ok: >-
+      {%- set route = app_route.resources | first | default({}) -%}
+      {%- set true_types = route.status.parents | default([]) if route.status is defined else [] -%}
+      {%- set true_types = true_types | map(attribute='conditions') | flatten
+            | selectattr('status', 'equalto', 'True') | map(attribute='type') | list -%}
+      {{ 'Accepted' in true_types and 'ResolvedRefs' in true_types }}
+  until: app_route_ok | bool
+  retries: 30
+  delay: 2
+  when: golden_config.spec.app.expose.enabled

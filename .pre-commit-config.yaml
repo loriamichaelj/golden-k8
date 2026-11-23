@@ -101,6 +101,14 @@ repos:
         files: ^(ansible/|k8s/platform/)
         pass_filenames: false
 
+      # --- Kubernetes manifests ---
+      - id: app-manifests
+        name: app manifests (kustomize + kubeconform)
+        entry: mise exec -- scripts/test-manifests.sh
+        language: system
+        files: ^(k8s/app/|scripts/test-manifests\.sh$)
+        pass_filenames: false
+
       # --- Go ---
       - id: golangci-lint
         name: golangci-lint

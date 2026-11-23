@@ -72,9 +72,28 @@ jobs:
       - name: Terraform tests (mocked providers)
         run: make test-terraform
 
+  app:
+    name: app + manifests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup tools
+        uses: ./.github/actions/setup-tools
+
+      - name: Go unit tests (race detector)
+        run: make test-app
+
+      - name: Kustomize overlays (kubeconform, strict)
+        run: make test-manifests
+
   local-e2e:
     name: local e2e (kind)
-    needs: [config, terraform]
+    needs: [config, terraform, app]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: ci
@@ -93,14 +112,20 @@ jobs:
       - name: Check gateway port mapping
         run: docker port golden-local-ci-control-plane 30080/tcp | grep -q '^127.0.0.1:80$'
 
-      - name: Bootstrap platform (twice, second run must change nothing)
-        run: mise exec -- scripts/bootstrap.sh --check-idempotent
+      - name: Build the app image (< 20 MB) and load it into kind
+        run: make image
 
-      - name: Request through the shared Gateway (no routes yet → Envoy 404)
+      - name: Bootstrap platform and app (twice, second run must change nothing)
+        run: mise exec -- scripts/playbook.sh bootstrap --check-idempotent
+
+      - name: Unknown host through the shared Gateway → Envoy 404
         run: |
-          code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: hello.localtest.me' http://127.0.0.1/)"
+          code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: unknown.localtest.me' http://127.0.0.1/)"
           echo "HTTP $code"
           test "$code" = 404
+
+      - name: Smoke tests (app via the Gateway, Prometheus scrape, dashboard, HPA)
+        run: make smoke
 
       - name: Observability (Grafana via the Gateway, targets up, lite memory budget)
         run: make check-observability
@@ -111,6 +136,7 @@ jobs:
           KUBECONFIG="$(mise exec -- yq -r '.kubeconfig_path' build/contract.json)"
           export KUBECONFIG
           mise exec -- kubectl get pods -A -o wide
+          mise exec -- kubectl -n apps describe deployment,hpa,httproute hello || true
           mise exec -- kubectl get events -A --sort-by=.lastTimestamp | tail -n 50
 
       - name: Destroy kind cluster

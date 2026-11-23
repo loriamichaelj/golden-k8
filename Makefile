@@ -44,8 +44,16 @@ test-config: ## Config contract tests (schema fixtures + example environments)
 test-terraform: ## Terraform tests for every module and stack (mocked, no cloud/Docker)
 	$(RUN) scripts/test-terraform.sh
 
+.PHONY: test-app
+test-app: ## Sample app unit tests (go test -race)
+	cd app && $(RUN) go test -race -count=1 ./...
+
+.PHONY: test-manifests
+test-manifests: ## Build every app overlay and validate it with kubeconform
+	$(RUN) scripts/test-manifests.sh
+
 .PHONY: validate
-validate: lint test-config test-terraform ## Full static validation (grows with each increment)
+validate: lint test-config test-terraform test-app test-manifests ## Full static validation
 
 ##@ Config
 
@@ -64,8 +72,8 @@ infra-down: config ## Destroy the cluster for ENV
 	$(RUN) scripts/infra.sh down build/config.json
 
 .PHONY: bootstrap
-bootstrap: ## Install the platform layer (gateway, observability) with Ansible (needs make infra-up)
-	$(RUN) scripts/bootstrap.sh
+bootstrap: ## Install the platform and the app with Ansible (needs make infra-up and make image)
+	$(RUN) scripts/playbook.sh bootstrap
 
 .PHONY: check-observability
 check-observability: ## Grafana via the Gateway, Prometheus targets up, memory budget (needs make bootstrap)
@@ -76,20 +84,19 @@ grafana: ## Print the Grafana URL and admin login for the running environment
 	$(RUN) scripts/observability.sh login
 
 .PHONY: image
-image: ## Build the sample app image and load it into kind
-	$(call todo,increment 5)
+image: ## Build the sample app image (< 20 MB) and load it into kind (never pushed)
+	$(RUN) scripts/image.sh build/config.json
 
 .PHONY: up
-up: ## Full environment: config → infra → bootstrap → app
-	$(call todo,increment 5)
+up: infra-up ## Full environment: config → infra → image → bootstrap (platform + app)
+	$(MAKE) image bootstrap
 
 .PHONY: smoke
-smoke: ## Run smoke tests against the running environment
-	$(call todo,increment 5)
+smoke: ## Smoke tests: app via the Gateway, scraped by Prometheus, dashboard, HPA metrics
+	$(RUN) scripts/playbook.sh smoke
 
 .PHONY: down
-down: ## Tear down everything golden-k8 created for ENV
-	$(call todo,increment 5)
+down: infra-down ## Tear down everything golden-k8 created for ENV
 
 .PHONY: render
 render: ## Render manifests for ENV without applying (any provider)

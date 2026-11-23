@@ -26,7 +26,13 @@ make tools   # install the pinned tool versions from mise.toml
 make hooks   # install the pre-commit hook
 make lint    # run every linter and scanner
 make help    # list all targets
+
+make up      # kind cluster → image → platform → app (environments/local.yaml)
+make smoke   # check the app end to end
+make down    # destroy it
 ```
+
+Then open http://hello.localtest.me and http://grafana.localtest.me (`make grafana` prints the login).
 
 ## The parameter file
 
@@ -47,6 +53,8 @@ make config ENV=environments/local.yaml   # validate + merge defaults → build/
 make test-config                          # schema test fixtures + example environments
 ```
 
+Editors with the YAML language server (e.g. VS Code + `redhat.vscode-yaml`) get autocomplete and inline errors from `schema/golden.schema.json`.
+
 ## Local cluster
 
 ```sh
@@ -63,13 +71,13 @@ make test-terraform   # Terraform tests for every module and stack (no cloud, no
 ## Platform bootstrap
 
 ```sh
-make bootstrap   # Ansible: preflight → render → namespaces → Envoy Gateway → observability
+make bootstrap   # Ansible: preflight → render → namespaces → Envoy Gateway → observability → app
 ```
 
-Ansible only applies what it renders into `build/rendered/` from the config, the infrastructure outputs and the data in `k8s/platform/` (Helm releases, namespaces, templates). Every tool is pinned to the cluster in `build/contract.json`; nothing falls back to your default kubeconfig.
+Ansible only applies what it renders into `build/rendered/` from the config, the infrastructure outputs and the data in `k8s/` (Helm releases, namespaces, templates, the app overlays). Every tool is pinned to the cluster in `build/contract.json`; nothing falls back to your default kubeconfig. Helm also runs with its own config and cache under `build/helm/`, never your personal Helm repos.
 
 - **Traffic:** Gateway API with Envoy Gateway. One shared `Gateway` (`golden-gateway`); apps attach `HTTPRoute`s. On kind it listens on `127.0.0.1:80`.
-- **Namespaces:** labelled `golden-k8/managed=true`. Workload namespaces get a ResourceQuota, LimitRange defaults, default-deny NetworkPolicies (DNS and gateway traffic allowed) and the `restricted` Pod Security standard.
+- **Namespaces:** labelled `golden-k8/managed=true`. Workload namespaces get a ResourceQuota, LimitRange defaults, default-deny NetworkPolicies (DNS, gateway and Prometheus traffic allowed) and the `restricted` Pod Security standard.
 
 ## Observability
 
@@ -86,8 +94,25 @@ make check-observability   # Grafana via the Gateway, every Prometheus target up
   - CI always uses `lite` and warns when the parameter file asks for something else.
 - **Grafana** is served on the shared Gateway at `spec.observability.expose.host`. `*.localtest.me` resolves to `127.0.0.1`, so the local URL works without editing `/etc/hosts`. The admin password is generated in the cluster (Secret `monitoring/grafana-admin`) on the first bootstrap. It is never written to the repo or the rendered values.
 - **Retention:** `spec.observability.retentionDays` (default 2), capped by size.
+- **metrics-server** (kind only; managed clouds ship their own) feeds the app's HorizontalPodAutoscaler.
 
-Editors with the YAML language server (e.g. VS Code + `redhat.vscode-yaml`) get autocomplete and inline errors from `schema/golden.schema.json`.
+## Sample app
+
+A small Go service in `app/` (`net/http`, `log/slog` JSON logs, `prometheus/client_golang`):
+
+- **Endpoints:** `/` (hello + build info), `/healthz`, `/readyz` (turns 503 on SIGTERM, before the listener closes) and `/metrics` (`hello_http_requests_total`, `hello_http_request_duration_seconds`, …).
+- **Image:** multi-stage build to `distroless/static:nonroot`, about 15 MB. `make image` fails at 20 MB or more and loads the image straight into kind. Nothing is pushed to a registry.
+- **Manifests** (`k8s/app/`): a Kustomize base with the Deployment, Service, HTTPRoute, HPA, PDB, ServiceMonitor and Grafana dashboard, plus one overlay per provider.
+  - The Deployment runs non-root with a read-only root filesystem, probes and resource limits.
+  - The cloud overlays also spread replicas across zones.
+  - Bootstrap renders a generated overlay on top. It sets the image, the HPA minimum from `spec.app.replicas`, and the hostname from `spec.app.expose.host`.
+- **Dashboard:** `golden-k8 / hello` in Grafana shows request rate, error ratio, latency quantiles, replicas, CPU and memory.
+
+```sh
+make test-app         # go test -race
+make test-manifests   # every overlay through kubeconform (strict, pinned Kubernetes + CRD schemas)
+make smoke            # app via the Gateway, Prometheus scrapes it, request metric recorded, dashboard provisioned, HPA has metrics
+```
 
 ## Repository layout
 
@@ -95,8 +120,8 @@ Editors with the YAML language server (e.g. VS Code + `redhat.vscode-yaml`) get 
 environments/   parameter files, one per environment
 schema/         parameter file JSON Schema + defaults
 terraform/      provider adapters (modules/), root stacks (stacks/), tests
-ansible/        platform bootstrap playbooks and roles
-k8s/            platform Helm values and sample app manifests
+ansible/        bootstrap and smoke playbooks, roles
+k8s/            platform data (Helm releases, templates) and sample app manifests (Kustomize)
 app/            sample Go service
 .github/        CI, reusable workflow, composite actions
 ```

@@ -1,0 +1,23 @@
+# Attached to the shared Gateway. The hostname comes from spec.app.expose.host
+# (generated overlay); the route is dropped when expose is disabled.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hello
+  labels:
+    app.kubernetes.io/name: hello
+spec:
+  parentRefs:
+    - name: golden-gateway
+      namespace: envoy-gateway-system
+      sectionName: http
+  hostnames:
+    - hello.localtest.me
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: hello
+          port: 80
