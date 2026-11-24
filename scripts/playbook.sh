@@ -10,7 +10,7 @@
 # --check-idempotent runs the playbook a second time and fails unless that
 # run reports changed=0.
 # --confirm-existing is required for anything that touches a provider-existing
-# cluster (ADR-007 guardrails).
+# cluster (see the guardrails role).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

@@ -1,4 +1,4 @@
-# azure: validated and mock-tested only. Never applied (ADR-001).
+# azure: validated and mock-tested only. Never applied.
 # Shared cloud defaults are in _cloud.yaml.
 #
 # spec.cluster.providerOverrides understood by terraform/stacks/azure:

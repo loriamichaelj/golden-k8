@@ -1,4 +1,4 @@
-# provider: existing — a cluster golden-k8 did not create (ADR-007).
+# provider: existing — a cluster golden-k8 did not create.
 #
 # Creates no resources and contacts no cluster. scripts/infra.sh snapshots the
 # one context named in spec.cluster.existing.context into a dedicated
