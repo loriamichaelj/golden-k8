@@ -88,7 +88,7 @@
       },
       "allOf": [
         {
-          "$comment": "Cloud providers need a region and a network; apply is always off (zero-cost rule, ADR-001).",
+          "$comment": "Cloud providers need a region and a network; apply is always off (zero-cost rule).",
           "if": {
             "properties": {
               "provider": {

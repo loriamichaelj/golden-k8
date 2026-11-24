@@ -6,7 +6,7 @@
 # Picks terraform/stacks/<provider>, keeps one state file per environment in
 # build/state/, and writes the outputs contract to build/contract.json.
 # Refuses to apply unless spec.pipeline.apply is true (only possible for
-# local/existing; golden-k8 never provisions cloud resources, ADR-001).
+# local/existing; golden-k8 never provisions cloud resources).
 #
 # provider existing creates nothing and never contacts the cluster: "up" copies
 # only spec.cluster.existing.context out of $KUBECONFIG (default

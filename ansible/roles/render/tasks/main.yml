@@ -1,5 +1,5 @@
 # Turn config + contract into plain YAML under build/rendered/. Every later
-# role applies these files; nothing is decided at apply time (ADR-009).
+# role applies these files; nothing is decided at apply time.
 - name: Create render directories
   ansible.builtin.file:
     path: "{{ item }}"

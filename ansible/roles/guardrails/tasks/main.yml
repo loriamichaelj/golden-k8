@@ -1,4 +1,4 @@
-# Guardrails for provider existing (ADR-007): golden-k8 did not create this
+# Guardrails for provider existing: golden-k8 did not create this
 # cluster, so nothing touches it unless all of these hold. They run before any
 # task contacts the cluster (bootstrap, smoke, teardown), and only read local
 # files: the parameter file, the contract and the kubeconfig snapshot.

@@ -1,4 +1,4 @@
-# The outputs contract (ADR-002, ADR-017). Every stack passes its values
+# The outputs contract. Every stack passes its values
 # through this module and outputs module.contract.contract, so all providers
 # expose an identical, validated shape to the layers above the cluster.
 
